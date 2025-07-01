@@ -1,0 +1,20 @@
+# Core dependencies
+llama-cpp-python>=0.2.0
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+
+# Document processing
+PyPDF2>=3.0.0
+python-docx>=0.8.11
+
+# Configuration
+pyyaml>=6.0.0
+
+# Optional: GPU acceleration (uncomment if needed)
+# llama-cpp-python[cuda]  # For CUDA support
+# llama-cpp-python[metal] # For Apple Metal support
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=5.0.0

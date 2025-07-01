@@ -1,0 +1,231 @@
+# DocuChat Configuration File
+# This file contains all configuration options for the DocuChat application
+# You can override any of these settings using command-line arguments
+
+# Model Configuration
+model:
+  # Path to the GGUF model file (required)
+  # Example: "./models/llama-2-7b-chat.gguf"
+  path: null
+  
+  # Context window size (number of tokens)
+  context_length: 4096
+  
+  # Number of CPU threads to use (null = auto-detect)
+  threads: null
+  
+  # Number of layers to offload to GPU (0 = CPU only)
+  gpu_layers: 0
+  
+  # Sampling parameters
+  temperature: 0.7        # Creativity/randomness (0.0-2.0)
+  max_tokens: 2048        # Maximum tokens to generate
+  top_p: 0.9             # Nucleus sampling threshold
+  top_k: 40              # Top-k sampling limit
+  repeat_penalty: 1.1    # Repetition penalty
+
+# Document Processing
+documents:
+  # Path to folder containing documents
+  folder_path: null
+  
+  # Text chunking parameters
+  chunk_size: 1000       # Size of each text chunk
+  chunk_overlap: 200     # Overlap between chunks
+  
+  # Supported file types: .txt, .pdf, .docx, .md
+  # Files are processed recursively from the folder
+
+# Embedding Model Configuration
+embeddings:
+  # Sentence transformer model for generating embeddings
+  # Popular options:
+  # - "all-MiniLM-L6-v2" (fast, good quality)
+  # - "all-mpnet-base-v2" (slower, better quality)
+  # - "multi-qa-MiniLM-L6-cos-v1" (optimized for Q&A)
+  model: "all-MiniLM-L6-v2"
+  
+  # Embedding dimensions (auto-detected from model)
+  # dimensions: 384  # for all-MiniLM-L6-v2
+
+# Vector Store Configuration
+vector_store:
+  # ChromaDB collection name
+  collection_name: "documents"
+  
+  # Persistence settings
+  persist_directory: "./chroma_db"
+  
+  # Distance metric for similarity search
+  # Options: "cosine", "euclidean", "manhattan"
+  distance_metric: "cosine"
+
+# RAG (Retrieval-Augmented Generation) Configuration
+rag:
+  # Number of documents to retrieve for context
+  retrieve_count: 5
+  
+  # Minimum similarity threshold for retrieved documents
+  similarity_threshold: 0.7
+  
+  # Maximum context length (in characters)
+  max_context_length: 4000
+  
+  # Context combination strategy
+  # Options: "concatenate", "summarize", "rank"
+  context_strategy: "concatenate"
+
+# MCP (Model Context Protocol) Configuration
+mcp:
+  # Enable MCP server functionality
+  enabled: false
+  
+  # MCP server settings
+  server:
+    host: "localhost"
+    port: 8000
+    
+  # MCP tools configuration
+  tools:
+    document_search: true
+    document_upload: true
+    chat_history: true
+
+# User Interface Configuration
+ui:
+  # System prompt for the assistant
+  system_prompt: "You are a helpful assistant that answers questions based on the provided context. If the context doesn't contain relevant information, say so clearly."
+  
+  # Chat template format
+  # Options: "auto", "chatml", "llama2", "alpaca"
+  chat_template: "auto"
+  
+  # Interactive mode settings
+  interactive: true
+  
+  # Display settings
+  verbose: false
+  show_sources: true
+  show_timing: false
+  
+  # Color scheme for terminal output
+  colors:
+    user: "blue"
+    assistant: "green"
+    system: "yellow"
+    error: "red"
+
+# Logging Configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  
+  # Log file path (null = console only)
+  file: null
+  
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Rotate log files
+  rotation:
+    enabled: false
+    max_size: "10MB"
+    backup_count: 5
+
+# Performance Configuration
+performance:
+  # Batch processing settings
+  batch_size: 512
+  
+  # Memory management
+  use_mlock: false       # Lock model in memory
+  use_mmap: true         # Use memory mapping
+  
+  # Caching settings
+  cache:
+    enabled: true
+    max_size: 1000       # Maximum cached responses
+    ttl: 3600           # Time to live in seconds
+  
+  # Parallel processing
+  max_workers: 4         # For document processing
+
+# Development Configuration
+development:
+  # Debug settings
+  debug: false
+  profile: false
+  
+  # Hot reload for development
+  hot_reload: false
+  
+  # API settings for development
+  api:
+    enabled: false
+    host: "localhost"
+    port: 8080
+    cors_enabled: true
+
+# Advanced Features
+advanced:
+  # Experimental features
+  experimental:
+    multi_modal: false
+    streaming: false
+    function_calling: false
+  
+  # Custom plugins
+  plugins:
+    enabled: false
+    directory: "./plugins"
+  
+  # Integration settings
+  integrations:
+    langchain: false
+    llamaindex: false
+    openai_api: false
+
+# Security Configuration
+security:
+  # Input validation
+  max_input_length: 10000
+  
+  # Rate limiting
+  rate_limit:
+    enabled: false
+    requests_per_minute: 60
+  
+  # Content filtering
+  content_filter:
+    enabled: false
+    blocked_patterns: []
+  
+  # API security
+  api_key: null
+  allowed_origins: ["*"]
+
+# Environment-specific overrides
+# These can be used to override settings based on environment
+environments:
+  development:
+    logging:
+      level: "DEBUG"
+    ui:
+      verbose: true
+  
+  production:
+    logging:
+      level: "WARNING"
+      file: "./logs/docuchat.log"
+    performance:
+      cache:
+        enabled: true
+    security:
+      rate_limit:
+        enabled: true
+  
+  testing:
+    model:
+      max_tokens: 100
+    rag:
+      retrieve_count: 2
