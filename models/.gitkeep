@@ -1,3 +1,2 @@
-# This file ensures the models directory is tracked by Git
-# Place your GGUF model files in this directory
-# Download models from: https://huggingface.co/models?library=gguf
+# This file ensures the models directory is tracked by git
+# Place your GGUF model files here

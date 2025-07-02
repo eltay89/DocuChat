@@ -21,6 +21,12 @@ warnings.filterwarnings("ignore", message=".*telemetry.*")
 warnings.filterwarnings("ignore", message=".*posthog.*")
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 os.environ["CHROMA_TELEMETRY"] = "False"
+os.environ["CHROMA_PRODUCT_TELEMETRY_IMPL"] = "chromadb.telemetry.product.posthog.Posthog"
+
+# Suppress specific ChromaDB telemetry logging
+import logging
+logging.getLogger("chromadb.telemetry.product.posthog").setLevel(logging.CRITICAL)
+logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
 
 try:
     from llama_cpp import Llama
@@ -222,9 +228,8 @@ class VectorStore:
         
         # Initialize ChromaDB with telemetry disabled
         self.client = chromadb.Client(Settings(
-            anonymized_telemetry=False,
             allow_reset=True,
-            telemetry=False
+            anonymized_telemetry=False
         ))
         
         # Get or create collection
@@ -240,21 +245,32 @@ class VectorStore:
         if not documents:
             logging.warning("No documents to add")
             return
-        
+
         logging.info(f"Generating embeddings for {len(documents)} documents...")
         embeddings = self.embedding_model.encode(documents, show_progress_bar=True)
-        
+
         # Prepare data for ChromaDB
         ids = [f"doc_{i}" for i in range(len(documents))]
+
+        # Clear existing collection by checking if it has documents first
+        try:
+            existing_count = self.collection.count()
+            if existing_count > 0:
+                # Get all existing IDs and delete them
+                existing_data = self.collection.get()
+                if existing_data['ids']:
+                    self.collection.delete(ids=existing_data['ids'])
+                    logging.info(f"Cleared {existing_count} existing documents from collection")
+        except Exception as e:
+            logging.warning(f"Could not clear existing documents: {e}")
         
-        # Clear existing collection and add new documents
-        self.collection.delete()
+        # Add new documents
         self.collection.add(
             embeddings=embeddings.tolist(),
             documents=documents,
             ids=ids
         )
-        
+
         logging.info(f"Added {len(documents)} documents to vector store")
     
     def search(self, query: str, n_results: int = 5) -> List[str]:
@@ -663,7 +679,7 @@ def parse_arguments():
     
     # Model arguments
     parser.add_argument(
-        "--model_path",
+        "--model_path", "--model-path",
         type=str,
         help="Path to the GGUF model file (overrides config file setting)"
     )

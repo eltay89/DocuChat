@@ -1,3 +1,2 @@
-# This file ensures the documents directory is tracked by Git
-# Place your document files (.pdf, .docx, .txt, .md) in this directory
-# DocuChat will automatically process all supported files in this folder
+# This file ensures the documents directory is tracked by git
+# Place your document files here for processing

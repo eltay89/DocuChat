@@ -27,7 +27,7 @@ model:
 # Document Processing
 documents:
   # Path to folder containing documents
-  folder_path: null
+  folder_path: "./documents"
   
   # Text chunking parameters
   chunk_size: 1000       # Size of each text chunk
