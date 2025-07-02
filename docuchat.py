@@ -14,11 +14,18 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 import yaml
 import warnings
+import re
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 
-# Suppress ChromaDB telemetry and other warnings
+# Suppress warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", message=".*telemetry.*")
 warnings.filterwarnings("ignore", message=".*posthog.*")
+# Suppress the specific BOS token RuntimeWarning since we handle it programmatically
+warnings.filterwarnings("ignore", message=".*duplicate leading.*begin_of_text.*")
+warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*duplicate.*BOS.*")
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 os.environ["CHROMA_TELEMETRY"] = "False"
 os.environ["CHROMA_PRODUCT_TELEMETRY_IMPL"] = "chromadb.telemetry.product.posthog.Posthog"
@@ -353,6 +360,9 @@ class DocuChatConfig:
         # Chat configuration
         self.system_prompt = "You are a helpful assistant that answers questions based on the provided context."
         self.chat_template = "auto"
+        self.chat_format = None  # Chat format for llama-cpp-python
+        
+
         
         # UI and interaction
         self.verbose = False
@@ -416,6 +426,8 @@ class DocuChatConfig:
                 config.interactive = ui_config.get('interactive', config.interactive)
                 config.system_prompt = ui_config.get('system_prompt', config.system_prompt)
                 config.chat_template = ui_config.get('chat_template', config.chat_template)
+            
+
             
             # Load streaming configuration from advanced.experimental section
             if 'advanced' in yaml_config and 'experimental' in yaml_config['advanced']:
@@ -493,153 +505,160 @@ class DocuChat:
         """Initialize all components."""
         logging.info("Initializing DocuChat...")
         
-        # Initialize document processor
-        self.document_processor = DocumentProcessor(
-            chunk_size=self.config.chunk_size,
-            chunk_overlap=self.config.chunk_overlap
-        )
+        # Only initialize document processing components if RAG is enabled
+        if not self.config.no_rag:
+            # Initialize document processor
+            self.document_processor = DocumentProcessor(
+                chunk_size=self.config.chunk_size,
+                chunk_overlap=self.config.chunk_overlap
+            )
+            
+            # Initialize vector store
+            self.vector_store = VectorStore(
+                collection_name=self.config.collection_name,
+                embedding_model=self.config.embedding_model
+            )
+            
+            # Load documents if folder path is provided
+            if self.config.folder_path:
+                logging.info(f"Loading documents from: {self.config.folder_path}")
+                try:
+                    documents = self.document_processor.load_documents(self.config.folder_path)
+                    if documents:
+                        logging.info(f"Successfully loaded {len(documents)} document chunks")
+                        self.vector_store.add_documents(documents)
+                        logging.info("Documents added to vector store successfully")
+                    else:
+                        logging.warning("No documents were loaded - check if documents exist in the folder")
+                        print(f"⚠️  Warning: No documents found in {self.config.folder_path}")
+                        print("   Supported formats: .txt, .pdf, .docx, .md")
+                except Exception as e:
+                    logging.error(f"Failed to load documents: {e}")
+                    print(f"❌ Error loading documents: {e}")
+                    print("   Continuing in LLM-only mode...")
+                    self.config.no_rag = True
+        else:
+            logging.info("RAG disabled - skipping document processing and embedding model initialization")
         
-        # Initialize vector store
-        self.vector_store = VectorStore(
-            collection_name=self.config.collection_name,
-            embedding_model=self.config.embedding_model
-        )
-        
-        # Load documents if folder path is provided
-        if self.config.folder_path:
-            logging.info(f"Loading documents from: {self.config.folder_path}")
-            try:
-                documents = self.document_processor.load_documents(self.config.folder_path)
-                if documents:
-                    logging.info(f"Successfully loaded {len(documents)} document chunks")
-                    self.vector_store.add_documents(documents)
-                    logging.info("Documents added to vector store successfully")
-                else:
-                    logging.warning("No documents were loaded - check if documents exist in the folder")
-                    print(f"⚠️  Warning: No documents found in {self.config.folder_path}")
-                    print("   Supported formats: .txt, .pdf, .docx, .md")
-            except Exception as e:
-                logging.error(f"Failed to load documents: {e}")
-                print(f"❌ Error loading documents: {e}")
-                print("   Continuing in LLM-only mode...")
-                self.config.no_rag = True
-        
-        # Initialize LLM
+        # Initialize LLM with chat format
         logging.info(f"Loading model: {self.config.model_path}")
-        self.llm = Llama(
-            model_path=self.config.model_path,
-            n_ctx=self.config.n_ctx,
-            n_threads=self.config.n_threads,
-            n_gpu_layers=self.config.n_gpu_layers,
-            use_mlock=self.config.use_mlock,
-            use_mmap=self.config.use_mmap,
-            verbose=self.config.verbose
-        )
+        
+        # Determine chat format based on config
+        chat_format = self.config.chat_format
+        if not chat_format and self.config.chat_template != "auto":
+            # Map chat_template to chat_format
+            template_mapping = {
+                "chatml": "chatml",
+                "llama2": "llama-2", 
+                "alpaca": "alpaca"
+            }
+            chat_format = template_mapping.get(self.config.chat_template)
+        
+        # Initialize Llama with chat_format parameter
+        llm_kwargs = {
+            "model_path": self.config.model_path,
+            "n_ctx": self.config.n_ctx,
+            "n_gpu_layers": self.config.n_gpu_layers,
+            "use_mlock": self.config.use_mlock,
+            "use_mmap": self.config.use_mmap,
+            "verbose": self.config.verbose
+        }
+        
+        if self.config.n_threads:
+            llm_kwargs["n_threads"] = self.config.n_threads
+            
+        if chat_format:
+            llm_kwargs["chat_format"] = chat_format
+            logging.info(f"Using chat format: {chat_format}")
+        
+        self.llm = Llama(**llm_kwargs)
+        
+
         
         logging.info("DocuChat initialized successfully!")
     
+
+    
+
+    
+
+    
+    def _create_messages(self, query: str, context_docs: List[str]) -> List[Dict[str, str]]:
+        """Create messages array for chat completion API."""
+        messages = []
+        
+        # Create system message
+        if self.config.no_rag or not context_docs:
+            system_content = "You are a helpful AI assistant. Answer questions using your knowledge."
+        else:
+            context = "\n\n".join(context_docs)
+            system_content = f"{self.config.system_prompt}\n\nContext:\n{context}"
+        
+        messages.append({"role": "system", "content": system_content})
+        
+        # Add user message
+        if self.config.no_rag or not context_docs:
+            user_content = query
+        else:
+            user_content = f"Question: {query}"
+        
+        messages.append({"role": "user", "content": user_content})
+        
+        return messages
+     
+
+    
     def generate_response(self, query: str, context_docs: List[str]) -> str:
         """Generate response using the LLM with retrieved context."""
-        # Create prompt based on whether we have context or are in no-rag mode
-        if self.config.no_rag or not context_docs:
-            # No-RAG mode or no context available - use simple prompt without context
-            system_prompt = "You are a helpful AI assistant. Answer questions using your knowledge."
-            if self.config.chat_template == "chatml":
-                prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n"
-            elif self.config.chat_template == "llama2":
-                prompt = f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\n{query} [/INST]"
-            elif self.config.chat_template == "alpaca":
-                prompt = f"### Instruction:\n{system_prompt}\n\n### Input:\n{query}\n\n### Response:\n"
-            else:  # auto or simple
-                prompt = f"{system_prompt}\n\nQuestion: {query}\n\nAnswer:"
-        else:
-            # RAG mode with context
-            context = "\n\n".join(context_docs)
-            if self.config.chat_template == "chatml":
-                prompt = f"<|im_start|>system\n{self.config.system_prompt}<|im_end|>\n<|im_start|>user\nContext:\n{context}\n\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
-            elif self.config.chat_template == "llama2":
-                prompt = f"<s>[INST] <<SYS>>\n{self.config.system_prompt}\n<</SYS>>\n\nContext:\n{context}\n\nQuestion: {query} [/INST]"
-            elif self.config.chat_template == "alpaca":
-                prompt = f"### Instruction:\n{self.config.system_prompt}\n\n### Input:\nContext:\n{context}\n\nQuestion: {query}\n\n### Response:\n"
-            else:  # auto or simple
-                prompt = f"{self.config.system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:"
+        # Create messages for chat completion
+        messages = self._create_messages(query, context_docs)
         
-        # Generate response
-        # Adjust stop tokens based on mode and template
-        stop_tokens = None
-        if self.config.chat_template == "auto":
-            if self.config.no_rag or not context_docs:
-                # In no-rag mode, be more permissive with stop tokens
-                stop_tokens = ["Question:", "Context:"]
-            else:
-                # In RAG mode, use standard stop tokens
-                stop_tokens = ["\n\n", "Question:", "Context:"]
-        
-        response = self.llm(
-            prompt,
+        # Generate response using create_chat_completion
+        response = self.llm.create_chat_completion(
+            messages=messages,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             top_p=self.config.top_p,
             top_k=self.config.top_k,
             repeat_penalty=self.config.repeat_penalty,
-            stop=stop_tokens
+            stop=["Question:", "Context:"] if context_docs else None
         )
         
-        return response['choices'][0]['text'].strip()
+        return response['choices'][0]['message']['content'].strip()
     
     def generate_response_streaming(self, query: str, context_docs: List[str]) -> str:
         """Generate response using the LLM with retrieved context and streaming output."""
-        # Create prompt based on whether we have context or are in no-rag mode
-        if self.config.no_rag or not context_docs:
-            # No-RAG mode or no context available - use simple prompt without context
-            system_prompt = "You are a helpful AI assistant. Answer questions using your knowledge."
-            if self.config.chat_template == "chatml":
-                prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n"
-            elif self.config.chat_template == "llama2":
-                prompt = f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\n{query} [/INST]"
-            elif self.config.chat_template == "alpaca":
-                prompt = f"### Instruction:\n{system_prompt}\n\n### Input:\n{query}\n\n### Response:\n"
-            else:  # auto or simple
-                prompt = f"{system_prompt}\n\nQuestion: {query}\n\nAnswer:"
-        else:
-            # RAG mode with context
-            context = "\n\n".join(context_docs)
-            if self.config.chat_template == "chatml":
-                prompt = f"<|im_start|>system\n{self.config.system_prompt}<|im_end|>\n<|im_start|>user\nContext:\n{context}\n\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
-            elif self.config.chat_template == "llama2":
-                prompt = f"<s>[INST] <<SYS>>\n{self.config.system_prompt}\n<</SYS>>\n\nContext:\n{context}\n\nQuestion: {query} [/INST]"
-            elif self.config.chat_template == "alpaca":
-                prompt = f"### Instruction:\n{self.config.system_prompt}\n\n### Input:\nContext:\n{context}\n\nQuestion: {query}\n\n### Response:\n"
-            else:  # auto or simple
-                prompt = f"{self.config.system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:"
+        # Create messages for chat completion
+        messages = self._create_messages(query, context_docs)
         
-        # Generate response with streaming
+        # Generate response with streaming using create_chat_completion
         full_response = ""
-        # Adjust stop tokens based on mode and template
-        stop_tokens = None
-        if self.config.chat_template == "auto":
-            if self.config.no_rag or not context_docs:
-                # In no-rag mode, be more permissive with stop tokens
-                stop_tokens = ["Question:", "Context:"]
-            else:
-                # In RAG mode, use standard stop tokens
-                stop_tokens = ["\n\n", "Question:", "Context:"]
         
-        stream = self.llm(
-            prompt,
+        stream = self.llm.create_chat_completion(
+            messages=messages,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
             top_p=self.config.top_p,
             top_k=self.config.top_k,
             repeat_penalty=self.config.repeat_penalty,
-            stop=stop_tokens,
+            stop=["Question:", "Context:"] if context_docs else None,
             stream=True
         )
         
         for output in stream:
-            token = output['choices'][0]['text']
-            print(token, end='', flush=True)
+            # Handle both delta and content formats
+            if 'delta' in output['choices'][0] and 'content' in output['choices'][0]['delta']:
+                token = output['choices'][0]['delta']['content']
+            elif 'message' in output['choices'][0] and 'content' in output['choices'][0]['message']:
+                token = output['choices'][0]['message']['content']
+            else:
+                continue
+                
+            if token is None:
+                continue
+                
             full_response += token
+            print(token, end='', flush=True)
         
         return full_response.strip()
     
@@ -752,11 +771,13 @@ class DocuChat:
         """Show current system status."""
         print(f"\n📊 {Fore.CYAN}System Status:{Style.RESET_ALL}")
         print(f"  Model: {self.config.model_path}")
-        print(f"  Documents folder: {self.config.folder_path}")
+        
+
         
         if self.config.no_rag:
             print(f"  Mode: {Fore.YELLOW}LLM-only (no document retrieval){Style.RESET_ALL}")
         else:
+            print(f"  Documents folder: {self.config.folder_path}")
             try:
                 # Check if vector store has documents
                 if self.vector_store and hasattr(self.vector_store, 'collection'):
@@ -771,9 +792,10 @@ class DocuChat:
                     print(f"  Mode: {Fore.RED}Vector store not initialized{Style.RESET_ALL}")
             except Exception as e:
                 print(f"  Mode: {Fore.RED}Error checking document status: {e}{Style.RESET_ALL}")
+            
+            print(f"  Embedding model: {self.config.embedding_model}")
+            print(f"  Retrieval count: {self.config.n_retrieve}")
         
-        print(f"  Embedding model: {self.config.embedding_model}")
-        print(f"  Retrieval count: {self.config.n_retrieve}")
         print(f"  Streaming: {Fore.GREEN if self.config.streaming else Fore.RED}{'Enabled' if self.config.streaming else 'Disabled'}{Style.RESET_ALL}")
 
 
@@ -895,6 +917,8 @@ def parse_arguments():
         help="Disable RAG (Retrieval-Augmented Generation) and use LLM only"
     )
     
+
+    
     # Chat arguments
     parser.add_argument(
         "--system_prompt",
@@ -946,6 +970,8 @@ def parse_arguments():
     
     # Apply command-line argument overrides
     config.update_from_args(args)
+    
+
     
     # Validate required settings
     if not config.model_path:
