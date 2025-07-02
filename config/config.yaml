@@ -1,91 +1,156 @@
+# ═══════════════════════════════════════════════════════════════════════════════
 # DocuChat Configuration File
-# This file contains all configuration options for the DocuChat application
-# You can override any of these settings using command-line arguments
+# ═══════════════════════════════════════════════════════════════════════════════
+# 
+# This file contains all configuration options for the DocuChat application.
+# You can override any of these settings using command-line arguments.
+# 
+# Configuration Priority (highest to lowest):
+# 1. Command-line arguments
+# 2. Environment variables
+# 3. This configuration file
+# 4. Default values
+# 
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Model Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ MODEL CONFIGURATION                                                         │
+# └─────────────────────────────────────────────────────────────────────────────┘
 model:
   # Path to the GGUF model file (required)
-  # Example: "./models/llama-2-7b-chat.gguf"
-  path: null
+  # Examples:
+  #   - "./models/llama-2-7b-chat.gguf"
+  #   - "./models/llama3.1n-4b.gguf"
+  #   - "./models/qwen2.5-7b-instruct.gguf"
+  path: "./models/llama3.1n-4b.gguf"
   
   # Context window size (number of tokens)
+  # Recommended values:
+  #   - 2048: Fast inference, basic conversations
+  #   - 4096: Balanced performance and context
+  #   - 8192: Large context, slower inference
   context_length: 4096
   
   # Number of CPU threads to use (null = auto-detect)
+  # Set to number of CPU cores for optimal performance
   threads: null
   
   # Number of layers to offload to GPU (0 = CPU only)
+  # Increase for better GPU utilization if available
+  # Set to -1 to offload all layers to GPU
   gpu_layers: 0
   
-  # Sampling parameters
+  # ┌─── Sampling Parameters ───┐
+  # Fine-tune response generation
   temperature: 0.7        # Creativity/randomness (0.0-2.0)
+                         # 0.1-0.3: Focused, deterministic
+                         # 0.7-0.9: Balanced creativity
+                         # 1.0+: Very creative, unpredictable
+  
   max_tokens: 2048        # Maximum tokens to generate
-  top_p: 0.9             # Nucleus sampling threshold
+  top_p: 0.9             # Nucleus sampling (0.1-1.0)
   top_k: 40              # Top-k sampling limit
-  repeat_penalty: 1.1    # Repetition penalty
+  repeat_penalty: 1.1    # Repetition penalty (1.0-1.3)
 
-# Document Processing
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ DOCUMENT PROCESSING                                                         │
+# └─────────────────────────────────────────────────────────────────────────────┘
 documents:
   # Path to folder containing documents
+  # The application will recursively scan this folder for supported files
   folder_path: "./documents"
   
-  # Text chunking parameters
-  chunk_size: 1000       # Size of each text chunk
-  chunk_overlap: 200     # Overlap between chunks
+  # ┌─── Text Chunking Parameters ───┐
+  # Optimize for your document types and model context
+  chunk_size: 1000       # Size of each text chunk (characters)
+                         # Smaller: More precise retrieval
+                         # Larger: More context per chunk
   
-  # Supported file types: .txt, .pdf, .docx, .md
+  chunk_overlap: 200     # Overlap between chunks (characters)
+                         # Prevents information loss at boundaries
+  
+  # ┌─── Supported File Types ───┐
+  # Automatically detected and processed:
+  # • .txt  - Plain text files
+  # • .pdf  - PDF documents
+  # • .docx - Microsoft Word documents
+  # • .doc  - Legacy Word documents
+  # • .md   - Markdown files
+  # 
   # Files are processed recursively from the folder
 
-# Embedding Model Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ EMBEDDING MODEL CONFIGURATION                                               │
+# └─────────────────────────────────────────────────────────────────────────────┘
 embeddings:
   # Sentence transformer model for generating embeddings
-  # Options:
-  # 1. Hugging Face model identifiers:
-  #    - "all-MiniLM-L6-v2" (fast, good quality, 384 dims)
-  #    - "all-mpnet-base-v2" (slower, better quality, 768 dims)
-  #    - "multi-qa-MiniLM-L6-cos-v1" (optimized for Q&A, 384 dims)
-  #    - "paraphrase-multilingual-MiniLM-L12-v2" (multilingual, 384 dims)
-  # 2. Local models in embeddings/ folder:
-  #    - "my-custom-model" (looks in ./embeddings/my-custom-model/)
-  # 3. Absolute or relative paths:
-  #    - "./embeddings/custom-model"
-  #    - "/path/to/model"
+  # Choose based on your performance and quality requirements
+  
+  # ┌─── Recommended Models ───┐
+  # Fast & Efficient (384 dimensions):
+  #   - "all-MiniLM-L6-v2"              # Best balance of speed/quality
+  #   - "multi-qa-MiniLM-L6-cos-v1"     # Optimized for Q&A tasks
+  #   - "paraphrase-MiniLM-L6-v2"       # Good for paraphrase detection
+  # 
+  # High Quality (768 dimensions):
+  #   - "all-mpnet-base-v2"             # Best overall quality
+  #   - "sentence-transformers/all-distilroberta-v1"  # Alternative high-quality
+  # 
+  # Multilingual Support:
+  #   - "paraphrase-multilingual-MiniLM-L12-v2"  # 50+ languages
+  #   - "distiluse-base-multilingual-cased"      # 15+ languages
+  # 
+  # Local Models:
+  #   - "./embeddings/my-custom-model"   # Local custom model
+  #   - "Qwen3-0.6B"                    # From embeddings/ folder
+  
   model: "all-MiniLM-L6-v2"
   
   # Embedding dimensions (auto-detected from model)
+  # Uncomment to override auto-detection
   # dimensions: 384  # for all-MiniLM-L6-v2
-  
-  # Custom model examples (uncomment to use):
-  # model: "all-mpnet-base-v2"                    # Better quality
-  # model: "sentence-transformers/all-distilroberta-v1"  # Alternative
-  # model: "./embeddings/my-custom-model"         # Local custom model
-  # model: "multilingual-model"                   # From embeddings/ folder
+  # dimensions: 768  # for all-mpnet-base-v2
 
-# Vector Store Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ VECTOR STORE CONFIGURATION                                                  │
+# └─────────────────────────────────────────────────────────────────────────────┘
 vector_store:
   # ChromaDB collection name
+  # Use descriptive names for different document sets
   collection_name: "documents"
   
   # Persistence settings
+  # Vector database will be saved to this directory
   persist_directory: "./chroma_db"
   
   # Distance metric for similarity search
-  # Options: "cosine", "euclidean", "manhattan"
+  # • cosine: Best for most text applications (recommended)
+  # • euclidean: Good for numerical data
+  # • manhattan: Alternative distance metric
   distance_metric: "cosine"
 
-# RAG (Retrieval-Augmented Generation) Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ RAG (RETRIEVAL-AUGMENTED GENERATION) CONFIGURATION                         │
+# └─────────────────────────────────────────────────────────────────────────────┘
 rag:
   # Number of documents to retrieve for context
+  # More documents = more context but slower processing
+  # Recommended: 3-7 for most use cases
   retrieve_count: 5
   
   # Minimum similarity threshold for retrieved documents
+  # Higher values = more relevant but fewer results
+  # Range: 0.0 (all results) to 1.0 (exact matches only)
   similarity_threshold: 0.7
   
   # Maximum context length (in characters)
+  # Adjust based on your model's context window
   max_context_length: 4000
   
   # Context combination strategy
-  # Options: "concatenate", "summarize", "rank"
+  # • concatenate: Simple joining (fastest)
+  # • summarize: AI-powered summarization (slower)
+  # • rank: Reorder by relevance (balanced)
   context_strategy: "concatenate"
 
 # MCP (Model Context Protocol) Configuration
@@ -104,29 +169,40 @@ mcp:
     document_upload: true
     chat_history: true
 
-# User Interface Configuration
+
+
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ USER INTERFACE CONFIGURATION                                                │
+# └─────────────────────────────────────────────────────────────────────────────┘
 ui:
   # System prompt for the assistant
-  system_prompt: "You are a helpful assistant that answers questions based on the provided context. If the context doesn't contain relevant information, say so clearly."
+  # Customize the AI's behavior and personality
+  system_prompt: "You are a helpful assistant that answers questions based on the provided context. If the context doesn't contain relevant information, say so clearly. Always be accurate, concise, and cite your sources when possible."
   
   # Chat template format
-  # Options: "auto", "chatml", "llama2", "alpaca"
+  # • auto: Automatically detect from model
+  # • chatml: ChatML format (recommended for most models)
+  # • llama2: Llama 2 chat format
+  # • alpaca: Alpaca instruction format
   chat_template: "auto"
   
-  # Interactive mode settings
-  interactive: true
+  # ┌─── Interactive Mode Settings ───┐
+  interactive: true          # Enable interactive chat mode
   
-  # Display settings
-  verbose: false
-  show_sources: true
-  show_timing: false
+  # ┌─── Display Settings ───┐
+  verbose: false            # Show detailed processing information
+  show_sources: true        # Display source documents for answers
+  show_timing: false        # Show response generation timing
+  streaming: true           # Enable real-time response streaming
   
-  # Color scheme for terminal output
+  # ┌─── Color Scheme ───┐
+  # Terminal output colors for better readability
   colors:
-    user: "blue"
-    assistant: "green"
-    system: "yellow"
-    error: "red"
+    user: "blue"           # User input color
+    assistant: "green"     # AI response color
+    system: "yellow"       # System messages color
+    error: "red"           # Error messages color
+    info: "cyan"           # Information messages color
 
 # Logging Configuration
 logging:
@@ -145,23 +221,33 @@ logging:
     max_size: "10MB"
     backup_count: 5
 
-# Performance Configuration
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ PERFORMANCE CONFIGURATION                                                   │
+# └─────────────────────────────────────────────────────────────────────────────┘
 performance:
-  # Batch processing settings
-  batch_size: 512
+  # ┌─── Batch Processing ───┐
+  batch_size: 512          # Embedding batch size (adjust for memory)
   
-  # Memory management
-  use_mlock: false       # Lock model in memory
-  use_mmap: true         # Use memory mapping
+  # ┌─── Memory Management ───┐
+  use_mlock: false         # Lock model in memory (prevents swapping)
+                          # Enable for production, disable for development
+  use_mmap: true          # Use memory mapping (recommended)
+                          # Reduces memory usage for large models
   
-  # Caching settings
+  # ┌─── Response Caching ───┐
   cache:
-    enabled: true
-    max_size: 1000       # Maximum cached responses
-    ttl: 3600           # Time to live in seconds
+    enabled: true         # Enable response caching for faster repeated queries
+    max_size: 1000        # Maximum cached responses
+    ttl: 3600            # Cache time-to-live (seconds)
+                          # 3600 = 1 hour, 86400 = 24 hours
   
-  # Parallel processing
-  max_workers: 4         # For document processing
+  # ┌─── Parallel Processing ───┐
+  max_workers: 4          # Number of worker threads for document processing
+                          # Set to number of CPU cores for optimal performance
+  
+  # ┌─── Optimization Settings ───┐
+  preload_embeddings: true  # Preload embedding model at startup
+  lazy_loading: false      # Load components on-demand vs at startup
 
 # Development Configuration
 development:
