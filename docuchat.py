@@ -540,20 +540,41 @@ class DocuChat:
     
     def generate_response(self, query: str, context_docs: List[str]) -> str:
         """Generate response using the LLM with retrieved context."""
-        # Prepare context
-        context = "\n\n".join(context_docs) if context_docs else "No relevant context found."
-        
-        # Create prompt
-        if self.config.chat_template == "chatml":
-            prompt = f"<|im_start|>system\n{self.config.system_prompt}<|im_end|>\n<|im_start|>user\nContext:\n{context}\n\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
-        elif self.config.chat_template == "llama2":
-            prompt = f"<s>[INST] <<SYS>>\n{self.config.system_prompt}\n<</SYS>>\n\nContext:\n{context}\n\nQuestion: {query} [/INST]"
-        elif self.config.chat_template == "alpaca":
-            prompt = f"### Instruction:\n{self.config.system_prompt}\n\n### Input:\nContext:\n{context}\n\nQuestion: {query}\n\n### Response:\n"
-        else:  # auto or simple
-            prompt = f"{self.config.system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:"
+        # Create prompt based on whether we have context or are in no-rag mode
+        if self.config.no_rag or not context_docs:
+            # No-RAG mode or no context available - use simple prompt without context
+            system_prompt = "You are a helpful AI assistant. Answer questions using your knowledge."
+            if self.config.chat_template == "chatml":
+                prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n"
+            elif self.config.chat_template == "llama2":
+                prompt = f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\n{query} [/INST]"
+            elif self.config.chat_template == "alpaca":
+                prompt = f"### Instruction:\n{system_prompt}\n\n### Input:\n{query}\n\n### Response:\n"
+            else:  # auto or simple
+                prompt = f"{system_prompt}\n\nQuestion: {query}\n\nAnswer:"
+        else:
+            # RAG mode with context
+            context = "\n\n".join(context_docs)
+            if self.config.chat_template == "chatml":
+                prompt = f"<|im_start|>system\n{self.config.system_prompt}<|im_end|>\n<|im_start|>user\nContext:\n{context}\n\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
+            elif self.config.chat_template == "llama2":
+                prompt = f"<s>[INST] <<SYS>>\n{self.config.system_prompt}\n<</SYS>>\n\nContext:\n{context}\n\nQuestion: {query} [/INST]"
+            elif self.config.chat_template == "alpaca":
+                prompt = f"### Instruction:\n{self.config.system_prompt}\n\n### Input:\nContext:\n{context}\n\nQuestion: {query}\n\n### Response:\n"
+            else:  # auto or simple
+                prompt = f"{self.config.system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:"
         
         # Generate response
+        # Adjust stop tokens based on mode and template
+        stop_tokens = None
+        if self.config.chat_template == "auto":
+            if self.config.no_rag or not context_docs:
+                # In no-rag mode, be more permissive with stop tokens
+                stop_tokens = ["Question:", "Context:"]
+            else:
+                # In RAG mode, use standard stop tokens
+                stop_tokens = ["\n\n", "Question:", "Context:"]
+        
         response = self.llm(
             prompt,
             max_tokens=self.config.max_tokens,
@@ -561,28 +582,49 @@ class DocuChat:
             top_p=self.config.top_p,
             top_k=self.config.top_k,
             repeat_penalty=self.config.repeat_penalty,
-            stop=["\n\n", "Question:", "Context:"] if self.config.chat_template == "auto" else None
+            stop=stop_tokens
         )
         
         return response['choices'][0]['text'].strip()
     
     def generate_response_streaming(self, query: str, context_docs: List[str]) -> str:
         """Generate response using the LLM with retrieved context and streaming output."""
-        # Prepare context
-        context = "\n\n".join(context_docs) if context_docs else "No relevant context found."
-        
-        # Create prompt
-        if self.config.chat_template == "chatml":
-            prompt = f"<|im_start|>system\n{self.config.system_prompt}<|im_end|>\n<|im_start|>user\nContext:\n{context}\n\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
-        elif self.config.chat_template == "llama2":
-            prompt = f"<s>[INST] <<SYS>>\n{self.config.system_prompt}\n<</SYS>>\n\nContext:\n{context}\n\nQuestion: {query} [/INST]"
-        elif self.config.chat_template == "alpaca":
-            prompt = f"### Instruction:\n{self.config.system_prompt}\n\n### Input:\nContext:\n{context}\n\nQuestion: {query}\n\n### Response:\n"
-        else:  # auto or simple
-            prompt = f"{self.config.system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:"
+        # Create prompt based on whether we have context or are in no-rag mode
+        if self.config.no_rag or not context_docs:
+            # No-RAG mode or no context available - use simple prompt without context
+            system_prompt = "You are a helpful AI assistant. Answer questions using your knowledge."
+            if self.config.chat_template == "chatml":
+                prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n"
+            elif self.config.chat_template == "llama2":
+                prompt = f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\n{query} [/INST]"
+            elif self.config.chat_template == "alpaca":
+                prompt = f"### Instruction:\n{system_prompt}\n\n### Input:\n{query}\n\n### Response:\n"
+            else:  # auto or simple
+                prompt = f"{system_prompt}\n\nQuestion: {query}\n\nAnswer:"
+        else:
+            # RAG mode with context
+            context = "\n\n".join(context_docs)
+            if self.config.chat_template == "chatml":
+                prompt = f"<|im_start|>system\n{self.config.system_prompt}<|im_end|>\n<|im_start|>user\nContext:\n{context}\n\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
+            elif self.config.chat_template == "llama2":
+                prompt = f"<s>[INST] <<SYS>>\n{self.config.system_prompt}\n<</SYS>>\n\nContext:\n{context}\n\nQuestion: {query} [/INST]"
+            elif self.config.chat_template == "alpaca":
+                prompt = f"### Instruction:\n{self.config.system_prompt}\n\n### Input:\nContext:\n{context}\n\nQuestion: {query}\n\n### Response:\n"
+            else:  # auto or simple
+                prompt = f"{self.config.system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:"
         
         # Generate response with streaming
         full_response = ""
+        # Adjust stop tokens based on mode and template
+        stop_tokens = None
+        if self.config.chat_template == "auto":
+            if self.config.no_rag or not context_docs:
+                # In no-rag mode, be more permissive with stop tokens
+                stop_tokens = ["Question:", "Context:"]
+            else:
+                # In RAG mode, use standard stop tokens
+                stop_tokens = ["\n\n", "Question:", "Context:"]
+        
         stream = self.llm(
             prompt,
             max_tokens=self.config.max_tokens,
@@ -590,7 +632,7 @@ class DocuChat:
             top_p=self.config.top_p,
             top_k=self.config.top_k,
             repeat_penalty=self.config.repeat_penalty,
-            stop=["\n\n", "Question:", "Context:"] if self.config.chat_template == "auto" else None,
+            stop=stop_tokens,
             stream=True
         )
         
