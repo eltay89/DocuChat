@@ -237,6 +237,7 @@ class DocuChatConfig:
         # RAG configuration
         self.n_retrieve = 5
         self.similarity_threshold = 0.7
+        self.no_rag = False
         
         # Chat configuration
         self.system_prompt = "You are a helpful assistant that answers questions based on the provided context."
@@ -295,6 +296,7 @@ class DocuChatConfig:
                 rag_config = yaml_config['rag']
                 config.n_retrieve = rag_config.get('retrieve_count', config.n_retrieve)
                 config.similarity_threshold = rag_config.get('similarity_threshold', config.similarity_threshold)
+                config.no_rag = rag_config.get('no_rag', config.no_rag)
             
             if 'ui' in yaml_config:
                 ui_config = yaml_config['ui']
@@ -338,6 +340,8 @@ class DocuChatConfig:
             self.max_tokens = args.max_tokens
         if args.n_retrieve != 5:  # Default value check
             self.n_retrieve = args.n_retrieve
+        if hasattr(args, 'no_rag') and args.no_rag:
+            self.no_rag = args.no_rag
         if args.verbose:
             self.verbose = args.verbose
         if hasattr(args, 'system_prompt') and args.system_prompt:
@@ -434,12 +438,14 @@ class DocuChat:
         if not self.llm:
             raise RuntimeError("DocuChat not initialized. Call initialize() first.")
         
-        # Retrieve relevant documents
+        # Retrieve relevant documents (skip if no_rag is enabled)
         context_docs = []
-        if self.vector_store and query.strip():
+        if not self.config.no_rag and self.vector_store and query.strip():
             context_docs = self.vector_store.search(query, n_results=self.config.n_retrieve)
             if self.config.verbose:
                 logging.info(f"Retrieved {len(context_docs)} relevant documents")
+        elif self.config.no_rag and self.config.verbose:
+            logging.info("RAG disabled - using LLM only mode")
         
         # Generate response
         response = self.generate_response(query, context_docs)
@@ -487,9 +493,13 @@ class DocuChat:
         print("  exit  - Exit the chat")
         print("  bye   - Exit the chat")
         print("\n💡 Tips:")
-        print("  - Ask questions about your documents")
-        print("  - Be specific for better results")
-        print("  - The AI will use document context to answer")
+        if self.config.no_rag:
+            print("  - LLM-only mode enabled (no document retrieval)")
+            print("  - Ask any questions directly to the language model")
+        else:
+            print("  - Ask questions about your documents")
+            print("  - Be specific for better results")
+            print("  - The AI will use document context to answer")
 
 
 def parse_arguments():
@@ -497,8 +507,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="DocuChat - Chat with your documents using local LLMs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
+        epilog="""Examples:
   # Use default config file
   python docuchat.py
   
@@ -510,6 +519,9 @@ Examples:
   
   # Command line only (no config file)
   python docuchat.py --config "" --model_path ./model.gguf --folder_path ./docs
+  
+  # LLM-only mode without RAG
+  python docuchat.py --no-rag --model_path ./model.gguf
         """
     )
     
@@ -579,6 +591,11 @@ Examples:
         type=int,
         default=5,
         help="Number of documents to retrieve (default: 5)"
+    )
+    parser.add_argument(
+        "--no-rag",
+        action="store_true",
+        help="Disable RAG (Retrieval-Augmented Generation) and use LLM only"
     )
     
     # Chat arguments

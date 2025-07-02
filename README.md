@@ -100,9 +100,12 @@ python docuchat.py --model_path ./custom-model.gguf --folder_path ./my-docs
 - `--chunk_size`: Document chunk size (default: 1000)
 - `--chunk_overlap`: Chunk overlap size (default: 200)
 
-### Other Options
+### RAG Options
 - `--embedding_model`: Sentence transformer model (default: all-MiniLM-L6-v2)
 - `--n_retrieve`: Number of documents to retrieve (default: 5)
+- `--no-rag`: Disable RAG (Retrieval-Augmented Generation) and use LLM only
+
+### Other Options
 - `--system_prompt`: Custom system prompt
 - `--chat_template`: Chat template format (auto, chatml, llama2, alpaca)
 - `--verbose`: Enable verbose logging
@@ -149,6 +152,15 @@ python docuchat.py --chat_template alpaca
 python docuchat.py --query "What is the main topic of the documents?"
 ```
 
+### LLM-Only Mode (No RAG)
+```bash
+# Use the LLM without document retrieval
+python docuchat.py --no-rag --model_path ./models/llama-2-7b.gguf
+
+# Combine with single query for direct LLM responses
+python docuchat.py --no-rag --query "Explain quantum computing" --model_path ./model.gguf
+```
+
 ### Advanced Usage
 ```bash
 # High-performance setup with custom settings
@@ -178,6 +190,7 @@ Once in interactive mode, you can use these commands:
 
 ## How It Works 🔧
 
+### RAG Mode (Default)
 1. **Document Processing**: Documents are loaded and split into overlapping chunks
 2. **Embedding Generation**: Text chunks are converted to vector embeddings using sentence transformers
 3. **Vector Storage**: Embeddings are stored in ChromaDB for efficient similarity search
@@ -185,6 +198,9 @@ Once in interactive mode, you can use these commands:
 5. **Context Retrieval**: Most relevant document chunks are retrieved based on similarity
 6. **Response Generation**: Retrieved context is combined with the query and sent to the LLM
 7. **Chat Template Application**: Responses are formatted using the appropriate chat template
+
+### LLM-Only Mode (--no-rag)
+When using the `--no-rag` flag, DocuChat bypasses the document retrieval process and sends queries directly to the language model, functioning as a standard chatbot without document context.
 
 ## Troubleshooting 🔧
 
