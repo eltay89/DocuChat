@@ -13,6 +13,14 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import yaml
+import warnings
+
+# Suppress ChromaDB telemetry and other warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*telemetry.*")
+warnings.filterwarnings("ignore", message=".*posthog.*")
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+os.environ["CHROMA_TELEMETRY"] = "False"
 
 try:
     from llama_cpp import Llama
@@ -78,17 +86,32 @@ class DocumentProcessor:
         if not folder.exists():
             raise FileNotFoundError(f"Folder not found: {folder_path}")
         
+        supported_files = []
         for file_path in folder.rglob('*'):
-            if file_path.is_file():
-                try:
-                    content = self._load_file(file_path)
-                    if content:
-                        chunks = self._chunk_text(content)
-                        documents.extend(chunks)
-                        logging.info(f"Loaded {len(chunks)} chunks from {file_path}")
-                except Exception as e:
-                    logging.warning(f"Failed to load {file_path}: {e}")
+            if file_path.is_file() and file_path.suffix.lower() in ['.txt', '.pdf', '.docx', '.doc', '.md']:
+                supported_files.append(file_path)
         
+        if not supported_files:
+            logging.warning(f"No supported document files found in {folder_path}")
+            return documents
+        
+        logging.info(f"Found {len(supported_files)} supported files to process")
+        
+        for file_path in supported_files:
+            try:
+                logging.info(f"Processing: {file_path.name}")
+                content = self._load_file(file_path)
+                if content and content.strip():
+                    chunks = self._chunk_text(content)
+                    documents.extend(chunks)
+                    logging.info(f"✓ Loaded {len(chunks)} chunks from {file_path.name}")
+                else:
+                    logging.warning(f"⚠ No content extracted from {file_path.name}")
+            except Exception as e:
+                logging.error(f"✗ Failed to load {file_path.name}: {e}")
+                continue
+        
+        logging.info(f"Total document chunks loaded: {len(documents)}")
         return documents
     
     def _load_file(self, file_path: Path) -> Optional[str]:
@@ -117,12 +140,35 @@ class DocumentProcessor:
             return f.read()
     
     def _load_pdf(self, file_path: Path) -> str:
-        """Load PDF file."""
+        """Load PDF file with improved error handling."""
         text = ""
-        with open(file_path, 'rb') as f:
-            reader = PyPDF2.PdfReader(f)
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
+        try:
+            with open(file_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                
+                if reader.is_encrypted:
+                    logging.warning(f"PDF {file_path.name} is encrypted and cannot be read")
+                    return ""
+                
+                total_pages = len(reader.pages)
+                logging.info(f"Processing PDF with {total_pages} pages")
+                
+                for i, page in enumerate(reader.pages):
+                    try:
+                        page_text = page.extract_text()
+                        if page_text.strip():
+                            text += page_text + "\n"
+                    except Exception as e:
+                        logging.warning(f"Failed to extract text from page {i+1}: {e}")
+                        continue
+                
+                if not text.strip():
+                    logging.warning(f"No text could be extracted from PDF {file_path.name}")
+                    
+        except Exception as e:
+            logging.error(f"Error reading PDF {file_path.name}: {e}")
+            raise
+            
         return text
     
     def _load_docx(self, file_path: Path) -> str:
@@ -174,10 +220,11 @@ class VectorStore:
         logging.info(f"Loading embedding model: {embedding_model}")
         self.embedding_model = SentenceTransformer(embedding_model)
         
-        # Initialize ChromaDB
+        # Initialize ChromaDB with telemetry disabled
         self.client = chromadb.Client(Settings(
             anonymized_telemetry=False,
-            allow_reset=True
+            allow_reset=True,
+            telemetry=False
         ))
         
         # Get or create collection
@@ -397,11 +444,21 @@ class DocuChat:
         # Load documents if folder path is provided
         if self.config.folder_path:
             logging.info(f"Loading documents from: {self.config.folder_path}")
-            documents = self.document_processor.load_documents(self.config.folder_path)
-            if documents:
-                self.vector_store.add_documents(documents)
-            else:
-                logging.warning("No documents were loaded")
+            try:
+                documents = self.document_processor.load_documents(self.config.folder_path)
+                if documents:
+                    logging.info(f"Successfully loaded {len(documents)} document chunks")
+                    self.vector_store.add_documents(documents)
+                    logging.info("Documents added to vector store successfully")
+                else:
+                    logging.warning("No documents were loaded - check if documents exist in the folder")
+                    print(f"⚠️  Warning: No documents found in {self.config.folder_path}")
+                    print("   Supported formats: .txt, .pdf, .docx, .md")
+            except Exception as e:
+                logging.error(f"Failed to load documents: {e}")
+                print(f"❌ Error loading documents: {e}")
+                print("   Continuing in LLM-only mode...")
+                self.config.no_rag = True
         
         # Initialize LLM
         logging.info(f"Loading model: {self.config.model_path}")
@@ -452,22 +509,45 @@ class DocuChat:
         
         # Retrieve relevant documents (skip if no_rag is enabled)
         context_docs = []
+        docs_used = False
         if not self.config.no_rag and self.vector_store and query.strip():
-            context_docs = self.vector_store.search(query, n_results=self.config.n_retrieve)
-            if self.config.verbose:
-                logging.info(f"Retrieved {len(context_docs)} relevant documents")
+            try:
+                context_docs = self.vector_store.search(query, n_results=self.config.n_retrieve)
+                if context_docs:
+                    docs_used = True
+                    # Clear the searching indicator and show found documents
+                    print(f"\r{Fore.GREEN}📄 Found {len(context_docs)} relevant document sections{Style.RESET_ALL}")
+                    if self.config.verbose:
+                        logging.info(f"Retrieved {len(context_docs)} relevant documents")
+                        logging.info("Using document context for response")
+                else:
+                    print(f"\r{Fore.YELLOW}📄 No relevant documents found, using general knowledge{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"\r{Fore.YELLOW}⚠️  Document search failed, using LLM-only mode: {e}{Style.RESET_ALL}")
+                logging.error(f"Error during document search: {e}")
+                logging.info("Falling back to LLM-only mode for this query")
+                context_docs = []
         elif self.config.no_rag and self.config.verbose:
             logging.info("RAG disabled - using LLM only mode")
         
         # Generate response
         response = self.generate_response(query, context_docs)
+        
+        # Add a subtle indicator if documents were used
+        if docs_used and not self.config.verbose:
+            response += f"\n\n{Fore.CYAN}💡 Response based on your documents{Style.RESET_ALL}"
+        
         return response
     
     def interactive_chat(self):
         """Start interactive chat session."""
         print(f"\n{Fore.CYAN}🤖 DocuChat Interactive Mode{Style.RESET_ALL}")
         print("Type 'quit', 'exit', or 'bye' to end the conversation.")
-        print("Type 'help' for available commands.\n")
+        print("Type 'help' for available commands.")
+        print("Type 'status' to check document loading status.\n")
+        
+        # Show initial status
+        self._show_status()
         
         while True:
             try:
@@ -483,6 +563,14 @@ class DocuChat:
                 if user_input.lower() == 'help':
                     self._show_help()
                     continue
+                    
+                if user_input.lower() == 'status':
+                    self._show_status()
+                    continue
+                
+                # Show thinking indicator for document retrieval
+                if not self.config.no_rag and self.vector_store:
+                    print(f"\n{Fore.CYAN}🔍 Searching documents...{Style.RESET_ALL}", end="", flush=True)
                 
                 print(f"\n{Fore.GREEN}🤖 DocuChat: {Style.RESET_ALL}", end="", flush=True)
                 response = self.chat(user_input)
@@ -500,10 +588,11 @@ class DocuChat:
     def _show_help(self):
         """Show help information."""
         print("\n📖 Available commands:")
-        print("  help  - Show this help message")
-        print("  quit  - Exit the chat")
-        print("  exit  - Exit the chat")
-        print("  bye   - Exit the chat")
+        print("  help   - Show this help message")
+        print("  status - Show document loading status")
+        print("  quit   - Exit the chat")
+        print("  exit   - Exit the chat")
+        print("  bye    - Exit the chat")
         print("\n💡 Tips:")
         if self.config.no_rag:
             print("  - LLM-only mode enabled (no document retrieval)")
@@ -512,6 +601,33 @@ class DocuChat:
             print("  - Ask questions about your documents")
             print("  - Be specific for better results")
             print("  - The AI will use document context to answer")
+            
+    def _show_status(self):
+        """Show current system status."""
+        print(f"\n📊 {Fore.CYAN}System Status:{Style.RESET_ALL}")
+        print(f"  Model: {self.config.model_path}")
+        print(f"  Documents folder: {self.config.folder_path}")
+        
+        if self.config.no_rag:
+            print(f"  Mode: {Fore.YELLOW}LLM-only (no document retrieval){Style.RESET_ALL}")
+        else:
+            try:
+                # Check if vector store has documents
+                if self.vector_store and hasattr(self.vector_store, 'collection'):
+                    count = self.vector_store.collection.count()
+                    if count > 0:
+                        print(f"  Mode: {Fore.GREEN}RAG enabled{Style.RESET_ALL}")
+                        print(f"  Documents loaded: {Fore.GREEN}{count} chunks{Style.RESET_ALL}")
+                    else:
+                        print(f"  Mode: {Fore.YELLOW}RAG enabled but no documents loaded{Style.RESET_ALL}")
+                        print(f"  Documents loaded: {Fore.RED}0 chunks{Style.RESET_ALL}")
+                else:
+                    print(f"  Mode: {Fore.RED}Vector store not initialized{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"  Mode: {Fore.RED}Error checking document status: {e}{Style.RESET_ALL}")
+        
+        print(f"  Embedding model: {self.config.embedding_model}")
+        print(f"  Retrieval count: {self.config.n_retrieve}")
 
 
 def parse_arguments():
