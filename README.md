@@ -202,6 +202,214 @@ Once in interactive mode, you can use these commands:
 ### LLM-Only Mode (--no-rag)
 When using the `--no-rag` flag, DocuChat bypasses the document retrieval process and sends queries directly to the language model, functioning as a standard chatbot without document context.
 
+### Vector Database Storage 💾
+**Yes, this application stores a vector database!** The app uses ChromaDB to persistently store vector embeddings of your documents. Here's how:
+
+- **Storage Location**: Vector database is stored in the `./chroma_db` directory (configurable in `config.yaml`)
+- **Persistence**: The database persists between sessions, so you don't need to re-process documents every time
+- **Benefits**: Faster startup times after initial processing, efficient similarity search, and reduced computational overhead
+- **Management**: The database is automatically created and managed by ChromaDB
+
+## Educational Guide: Understanding DocuChat 🎓
+
+*This section is designed for junior students and developers learning about RAG systems, NLP, and AI applications.*
+
+### Core Concepts Explained
+
+#### What is RAG (Retrieval-Augmented Generation)?
+RAG is a technique that combines:
+- **Retrieval**: Finding relevant information from a knowledge base
+- **Generation**: Using an AI model to create responses based on retrieved information
+
+Think of it like an open-book exam where the AI can look up relevant information before answering your question.
+
+#### Why Use RAG?
+1. **Knowledge Limitation**: LLMs have a knowledge cutoff date and can't access real-time or private information
+2. **Hallucination Reduction**: By grounding responses in actual documents, we reduce made-up information
+3. **Domain Specificity**: Allows the AI to become an expert on your specific documents
+4. **Cost Efficiency**: Cheaper than fine-tuning models on custom data
+
+### Key Libraries and Their Roles 📚
+
+#### 1. **llama-cpp-python** - Local Language Model Engine
+```python
+from llama_cpp import Llama
+```
+**What it does**: Runs GGUF format language models locally on your machine
+**Why we use it**: 
+- Privacy (no data sent to external APIs)
+- Cost-effective (no API fees)
+- Offline capability
+- Support for quantized models (smaller file sizes)
+
+**How it works**: Converts GGUF model files into executable inference engines using optimized C++ code
+
+#### 2. **ChromaDB** - Vector Database
+```python
+import chromadb
+from chromadb.config import Settings
+```
+**What it does**: Stores and searches vector embeddings efficiently
+**Why we use it**:
+- Fast similarity search using cosine similarity
+- Persistent storage (saves embeddings between sessions)
+- Automatic indexing and optimization
+- Built-in metadata filtering
+
+**How it works**: Uses approximate nearest neighbor (ANN) algorithms to quickly find similar vectors
+
+#### 3. **Sentence Transformers** - Text Embedding
+```python
+from sentence_transformers import SentenceTransformer
+```
+**What it does**: Converts text into numerical vectors (embeddings)
+**Why we use it**:
+- Captures semantic meaning ("car" and "automobile" have similar embeddings)
+- Pre-trained on large datasets
+- Optimized for sentence-level understanding
+
+**How it works**: Uses transformer neural networks to encode text into high-dimensional vectors
+
+#### 4. **PyPDF2 & python-docx** - Document Processing
+```python
+import PyPDF2
+from docx import Document
+```
+**What they do**: Extract text from different file formats
+**Why we use them**: Each format requires specialized parsing to extract clean text
+
+### Code Architecture Deep Dive 🏗️
+
+#### 1. Document Processing Pipeline
+```python
+def load_documents(self, folder_path):
+    # Step 1: Find all supported files
+    # Step 2: Extract text based on file type
+    # Step 3: Split into chunks with overlap
+    # Step 4: Create embeddings for each chunk
+    # Step 5: Store in vector database
+```
+
+**Why chunking?**
+- **Context Window Limits**: LLMs have maximum input lengths
+- **Relevance**: Smaller chunks = more precise retrieval
+- **Overlap**: Ensures important information isn't split across boundaries
+
+#### 2. Embedding Generation Process
+```python
+def create_embeddings(self, texts):
+    # Convert text chunks to numerical vectors
+    embeddings = self.embedding_model.encode(texts)
+    return embeddings
+```
+
+**Why embeddings work**:
+- Similar concepts cluster together in vector space
+- Mathematical operations can measure semantic similarity
+- Enables fast search through millions of documents
+
+#### 3. Retrieval Mechanism
+```python
+def retrieve_relevant_chunks(self, query, n_results=5):
+    # Step 1: Convert query to embedding
+    query_embedding = self.embedding_model.encode([query])
+    
+    # Step 2: Search vector database
+    results = self.collection.query(
+        query_embeddings=query_embedding,
+        n_results=n_results
+    )
+    return results
+```
+
+**How similarity search works**:
+1. Query gets converted to same vector space as documents
+2. Cosine similarity calculated between query and all document vectors
+3. Top-k most similar chunks retrieved
+4. Similarity scores help rank relevance
+
+#### 4. Response Generation
+```python
+def generate_response(self, query, context):
+    # Combine retrieved context with user query
+    prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer:"
+    
+    # Generate response using local LLM
+    response = self.llm(prompt, max_tokens=self.max_tokens)
+    return response
+```
+
+### Why This Architecture Works 🎯
+
+#### 1. **Separation of Concerns**
+- **Retrieval System**: Handles finding relevant information
+- **Generation System**: Focuses on creating coherent responses
+- **Storage System**: Manages persistent data efficiently
+
+#### 2. **Scalability**
+- Vector databases scale to millions of documents
+- Chunking allows processing of large documents
+- Local models avoid API rate limits
+
+#### 3. **Accuracy**
+- Grounding in actual documents reduces hallucinations
+- Semantic search finds conceptually related content
+- Context-aware generation produces relevant answers
+
+#### 4. **Privacy & Control**
+- All processing happens locally
+- No data sent to external services
+- Full control over model behavior and responses
+
+### Learning Exercises 📝
+
+#### Beginner Level
+1. **Experiment with chunk sizes**: Try different values and see how it affects retrieval quality
+2. **Compare embedding models**: Test different sentence transformer models
+3. **Analyze similarity scores**: Look at the relevance scores returned by ChromaDB
+
+#### Intermediate Level
+1. **Implement custom document loaders**: Add support for new file formats
+2. **Experiment with retrieval strategies**: Try different numbers of retrieved chunks
+3. **Customize chat templates**: Create templates for specific use cases
+
+#### Advanced Level
+1. **Implement hybrid search**: Combine semantic and keyword search
+2. **Add re-ranking**: Use cross-encoders to re-rank retrieved results
+3. **Optimize performance**: Profile and optimize the embedding and retrieval pipeline
+
+### Common Pitfalls and Solutions 🚨
+
+#### 1. **Poor Retrieval Quality**
+**Problem**: Irrelevant chunks being retrieved
+**Solutions**:
+- Adjust chunk size and overlap
+- Try different embedding models
+- Implement query expansion or reformulation
+
+#### 2. **Slow Performance**
+**Problem**: Long response times
+**Solutions**:
+- Use quantized models (Q4_K_M, Q5_K_M)
+- Reduce context window size
+- Implement caching for frequent queries
+
+#### 3. **Memory Issues**
+**Problem**: Out of memory errors
+**Solutions**:
+- Use smaller models
+- Process documents in batches
+- Implement streaming for large responses
+
+### Further Learning Resources 📖
+
+1. **Vector Databases**: Learn about Pinecone, Weaviate, and Qdrant
+2. **Embedding Models**: Explore BGE, E5, and other state-of-the-art models
+3. **LLM Optimization**: Study quantization, pruning, and distillation techniques
+4. **RAG Improvements**: Research advanced techniques like HyDE, RAG-Fusion, and RAPTOR
+
+This architecture demonstrates fundamental concepts in modern AI applications: vector search, semantic understanding, and local AI deployment. Understanding these concepts will help you build more sophisticated AI systems!
+
 ## Troubleshooting 🔧
 
 ### Common Issues
