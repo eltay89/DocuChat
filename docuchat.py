@@ -50,6 +50,18 @@ except ImportError:
     print("Please install it with: pip install python-docx")
     sys.exit(1)
 
+try:
+    from colorama import Fore, Style, init
+    init(autoreset=True)  # Initialize colorama
+    COLORS_AVAILABLE = True
+except ImportError:
+    # Fallback if colorama is not available
+    class Fore:
+        BLUE = CYAN = GREEN = YELLOW = RED = MAGENTA = WHITE = ""
+    class Style:
+        BRIGHT = RESET_ALL = ""
+    COLORS_AVAILABLE = False
+
 
 class DocumentProcessor:
     """Handles loading and processing of various document formats."""
@@ -226,7 +238,7 @@ class DocuChatConfig:
         self.repeat_penalty = 1.1
         
         # Document processing
-        self.folder_path = None
+        self.folder_path = "./documents"  # Default to ./documents folder
         self.chunk_size = 1000
         self.chunk_overlap = 200
         
@@ -453,34 +465,34 @@ class DocuChat:
     
     def interactive_chat(self):
         """Start interactive chat session."""
-        print("\n🤖 DocuChat Interactive Mode")
+        print(f"\n{Fore.CYAN}🤖 DocuChat Interactive Mode{Style.RESET_ALL}")
         print("Type 'quit', 'exit', or 'bye' to end the conversation.")
         print("Type 'help' for available commands.\n")
         
         while True:
             try:
-                user_input = input("\n👤 You: ").strip()
+                user_input = input(f"\n{Fore.BLUE}👤 You: {Style.RESET_ALL}").strip()
                 
                 if not user_input:
                     continue
                 
                 if user_input.lower() in ['quit', 'exit', 'bye']:
-                    print("\n👋 Goodbye!")
+                    print(f"\n{Fore.YELLOW}👋 Goodbye!{Style.RESET_ALL}")
                     break
                 
                 if user_input.lower() == 'help':
                     self._show_help()
                     continue
                 
-                print("\n🤖 DocuChat: ", end="", flush=True)
+                print(f"\n{Fore.GREEN}🤖 DocuChat: {Style.RESET_ALL}", end="", flush=True)
                 response = self.chat(user_input)
                 print(response)
                 
             except KeyboardInterrupt:
-                print("\n\n👋 Goodbye!")
+                print(f"\n\n{Fore.YELLOW}👋 Goodbye!{Style.RESET_ALL}")
                 break
             except Exception as e:
-                print(f"\n❌ Error: {e}")
+                print(f"\n{Fore.RED}❌ Error: {e}{Style.RESET_ALL}")
                 if self.config.verbose:
                     import traceback
                     traceback.print_exc()

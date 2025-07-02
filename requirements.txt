@@ -10,6 +10,9 @@ python-docx>=0.8.11
 # Configuration
 pyyaml>=6.0.0
 
+# Terminal colors
+colorama>=0.4.4
+
 # Optional: GPU acceleration (uncomment if needed)
 # llama-cpp-python[cuda]  # For CUDA support
 # llama-cpp-python[metal] # For Apple Metal support
