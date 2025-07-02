@@ -222,9 +222,19 @@ class VectorStore:
         self.collection_name = collection_name
         self.embedding_model_name = embedding_model
         
+        # Resolve embedding model path
+        resolved_model_path = self._resolve_embedding_model_path(embedding_model)
+        
         # Initialize embedding model
-        logging.info(f"Loading embedding model: {embedding_model}")
-        self.embedding_model = SentenceTransformer(embedding_model)
+        logging.info(f"Loading embedding model: {resolved_model_path}")
+        try:
+            self.embedding_model = SentenceTransformer(resolved_model_path)
+            logging.info(f"Successfully loaded embedding model: {resolved_model_path}")
+        except Exception as e:
+            logging.error(f"Failed to load embedding model '{resolved_model_path}': {e}")
+            logging.info("Falling back to default model: all-MiniLM-L6-v2")
+            self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+            self.embedding_model_name = "all-MiniLM-L6-v2"
         
         # Initialize ChromaDB with telemetry disabled
         self.client = chromadb.Client(Settings(
@@ -283,6 +293,32 @@ class VectorStore:
         )
         
         return results['documents'][0] if results['documents'] else []
+    
+    def _resolve_embedding_model_path(self, model_name: str) -> str:
+        """Resolve embedding model path, checking local embeddings folder first."""
+        # If it's already an absolute path, use it as-is
+        if os.path.isabs(model_name):
+            return model_name
+        
+        # Check if it's a relative path starting with ./ or ../
+        if model_name.startswith('./') or model_name.startswith('../'):
+            return model_name
+        
+        # Check if model exists in local embeddings folder
+        embeddings_dir = os.path.join(os.path.dirname(__file__), 'embeddings')
+        local_model_path = os.path.join(embeddings_dir, model_name)
+        
+        if os.path.exists(local_model_path):
+            logging.info(f"Found local embedding model: {local_model_path}")
+            return local_model_path
+        
+        # Check if it's a path relative to current directory
+        if os.path.exists(model_name):
+            return model_name
+        
+        # Otherwise, treat it as a Hugging Face model identifier
+        logging.info(f"Using Hugging Face model identifier: {model_name}")
+        return model_name
 
 
 class DocuChatConfig:
@@ -661,6 +697,18 @@ def parse_arguments():
   # Override config with command line arguments
   python docuchat.py --model_path ./models/llama-2-7b.gguf --folder_path ./docs
   
+  # Download an embedding model from Hugging Face
+  python docuchat.py --download_embedding_model sentence-transformers/all-mpnet-base-v2
+  
+  # Use custom embedding model from embeddings folder
+  python docuchat.py --embedding_model sentence-transformers--all-mpnet-base-v2
+  
+  # Use Hugging Face embedding model directly
+  python docuchat.py --embedding_model sentence-transformers/all-mpnet-base-v2
+  
+  # Use local embedding model with path
+  python docuchat.py --embedding_model ./embeddings/multilingual-model
+  
   # Command line only (no config file)
   python docuchat.py --config "" --model_path ./model.gguf --folder_path ./docs
   
@@ -726,7 +774,17 @@ def parse_arguments():
         "--embedding_model",
         type=str,
         default="all-MiniLM-L6-v2",
-        help="Sentence transformer model for embeddings (default: all-MiniLM-L6-v2)"
+        help="Embedding model for document similarity. Options: \n"
+             "  - Hugging Face model ID (e.g., 'all-MiniLM-L6-v2', 'all-mpnet-base-v2')\n"
+             "  - Local model in embeddings/ folder (e.g., 'my-custom-model')\n"
+             "  - Relative/absolute path (e.g., './embeddings/model', '/path/to/model')\n"
+             "  Default: all-MiniLM-L6-v2"
+    )
+    parser.add_argument(
+        "--download_embedding_model",
+        type=str,
+        help="Download an embedding model from Hugging Face to the embeddings/ folder. \n"
+             "Specify the Hugging Face model ID (e.g., 'sentence-transformers/all-mpnet-base-v2')"
     )
     
     # RAG arguments
@@ -770,6 +828,11 @@ def parse_arguments():
     
     args = parser.parse_args()
     
+    # Handle embedding model download early (before validation)
+    if hasattr(args, 'download_embedding_model') and args.download_embedding_model:
+        download_embedding_model(args.download_embedding_model)
+        sys.exit(0)
+    
     # Load configuration from YAML file first
     if args.config and os.path.exists(args.config):
         config = DocuChatConfig.from_yaml(args.config)
@@ -785,6 +848,43 @@ def parse_arguments():
         sys.exit(1)
     
     return config, args
+
+
+def download_embedding_model(model_id: str, embeddings_dir: str = "embeddings") -> str:
+    """Download an embedding model from Hugging Face to the embeddings folder.
+    
+    Args:
+        model_id: Hugging Face model ID (e.g., 'sentence-transformers/all-mpnet-base-v2')
+        embeddings_dir: Directory to save the model (default: 'embeddings')
+        
+    Returns:
+        str: Path to the downloaded model
+    """
+    try:
+        from sentence_transformers import SentenceTransformer
+        import os
+        
+        # Create embeddings directory if it doesn't exist
+        os.makedirs(embeddings_dir, exist_ok=True)
+        
+        # Extract model name from model_id for local folder name
+        model_name = model_id.replace('/', '--')
+        local_path = os.path.join(embeddings_dir, model_name)
+        
+        print(f"📥 Downloading embedding model '{model_id}' to '{local_path}'...")
+        
+        # Download and save the model
+        model = SentenceTransformer(model_id)
+        model.save(local_path)
+        
+        print(f"✅ Successfully downloaded embedding model to: {local_path}")
+        print(f"💡 You can now use it with: --embedding_model {model_name}")
+        
+        return local_path
+        
+    except Exception as e:
+        print(f"❌ Error downloading embedding model '{model_id}': {e}")
+        raise
 
 
 def main():

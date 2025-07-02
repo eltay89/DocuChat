@@ -39,14 +39,27 @@ documents:
 # Embedding Model Configuration
 embeddings:
   # Sentence transformer model for generating embeddings
-  # Popular options:
-  # - "all-MiniLM-L6-v2" (fast, good quality)
-  # - "all-mpnet-base-v2" (slower, better quality)
-  # - "multi-qa-MiniLM-L6-cos-v1" (optimized for Q&A)
+  # Options:
+  # 1. Hugging Face model identifiers:
+  #    - "all-MiniLM-L6-v2" (fast, good quality, 384 dims)
+  #    - "all-mpnet-base-v2" (slower, better quality, 768 dims)
+  #    - "multi-qa-MiniLM-L6-cos-v1" (optimized for Q&A, 384 dims)
+  #    - "paraphrase-multilingual-MiniLM-L12-v2" (multilingual, 384 dims)
+  # 2. Local models in embeddings/ folder:
+  #    - "my-custom-model" (looks in ./embeddings/my-custom-model/)
+  # 3. Absolute or relative paths:
+  #    - "./embeddings/custom-model"
+  #    - "/path/to/model"
   model: "all-MiniLM-L6-v2"
   
   # Embedding dimensions (auto-detected from model)
   # dimensions: 384  # for all-MiniLM-L6-v2
+  
+  # Custom model examples (uncomment to use):
+  # model: "all-mpnet-base-v2"                    # Better quality
+  # model: "sentence-transformers/all-distilroberta-v1"  # Alternative
+  # model: "./embeddings/my-custom-model"         # Local custom model
+  # model: "multilingual-model"                   # From embeddings/ folder
 
 # Vector Store Configuration
 vector_store:

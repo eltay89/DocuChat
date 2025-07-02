@@ -102,6 +102,7 @@ python docuchat.py --model_path ./custom-model.gguf --folder_path ./my-docs
 
 ### RAG Options
 - `--embedding_model`: Sentence transformer model (default: all-MiniLM-L6-v2)
+- `--download_embedding_model`: Download embedding model from Hugging Face to embeddings/ folder
 - `--n_retrieve`: Number of documents to retrieve (default: 5)
 - `--no-rag`: Disable RAG (Retrieval-Augmented Generation) and use LLM only
 
@@ -146,6 +147,18 @@ python docuchat.py --chat_template llama2
 python docuchat.py --chat_template alpaca
 ```
 
+### Embedding Model Management
+```bash
+# Download a custom embedding model from Hugging Face
+python docuchat.py --download_embedding_model "sentence-transformers/all-mpnet-base-v2"
+
+# Use a downloaded custom embedding model
+python docuchat.py --embedding_model "sentence-transformers--all-mpnet-base-v2"
+
+# Use a different Hugging Face model directly
+python docuchat.py --embedding_model "multi-qa-MiniLM-L6-cos-v1"
+```
+
 ### Single Query Mode
 ```bash
 # Process a single query without interactive mode
@@ -181,6 +194,48 @@ Once in interactive mode, you can use these commands:
 - `help` - Show available commands
 - `quit`, `exit`, `bye` - Exit the application
 - Any other text - Chat with your documents
+
+## Embedding Models 🧠
+
+### Default Model
+DocuChat uses `all-MiniLM-L6-v2` as the default embedding model, which provides:
+- Fast performance
+- Good quality embeddings
+- 384 dimensions
+- Suitable for most document types
+
+### Available Embedding Models
+You can use various embedding models:
+
+#### Hugging Face Models (Direct)
+- `all-MiniLM-L6-v2` (default) - Fast, good quality, 384 dims
+- `all-mpnet-base-v2` - Slower, better quality, 768 dims
+- `multi-qa-MiniLM-L6-cos-v1` - Optimized for Q&A, 384 dims
+- `paraphrase-multilingual-MiniLM-L12-v2` - Multilingual support, 384 dims
+
+#### Local Models
+Download models to the `embeddings/` folder for offline use:
+```bash
+# Download a model
+python docuchat.py --download_embedding_model "sentence-transformers/all-mpnet-base-v2"
+
+# Use the downloaded model
+python docuchat.py --embedding_model "sentence-transformers--all-mpnet-base-v2"
+```
+
+#### Custom Paths
+You can also specify absolute or relative paths:
+```bash
+python docuchat.py --embedding_model "./embeddings/my-custom-model"
+python docuchat.py --embedding_model "/path/to/custom/model"
+```
+
+### Model Selection Guidelines
+- **Speed Priority**: Use `all-MiniLM-L6-v2` (default)
+- **Quality Priority**: Use `all-mpnet-base-v2`
+- **Q&A Tasks**: Use `multi-qa-MiniLM-L6-cos-v1`
+- **Multilingual**: Use `paraphrase-multilingual-MiniLM-L12-v2`
+- **Offline Use**: Download models locally with `--download_embedding_model`
 
 ## Supported File Formats 📄
 - **PDF** (.pdf) - Extracted using PyPDF2
