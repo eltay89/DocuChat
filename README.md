@@ -2,26 +2,36 @@
 
 A powerful RAG (Retrieval-Augmented Generation) application that lets you chat with your documents using local language models. DocuChat processes your documents, creates vector embeddings, and provides intelligent responses based on your document content.
 
+## Recent Updates 🆕
+
+### Version 2.0 - Enhanced GGUF Auto-Detection
+- **🎯 Robust GGUF Processing**: Improved metadata reading with fallback mechanisms
+- **🔧 Enhanced Error Handling**: Better diagnostics for model loading issues
+- **📊 Advanced Chat Templates**: Auto-detecting chat templates with comprehensive format support
+- **🚀 Performance Optimizations**: Faster document processing and embedding generation
+- **🧪 Comprehensive Testing**: New test suite for GGUF functionality and chat templates
+
 ## Features ✨
 
-- **Local LLM Support**: Uses GGUF format models via llama-cpp-python
-- **Multiple Document Formats**: Supports PDF, DOCX, TXT, and Markdown files
-- **Vector Search**: Efficient document retrieval using ChromaDB and sentence transformers
-- **Interactive Chat**: Real-time conversation interface
-- **Flexible Configuration**: Support for both YAML configuration files and command-line arguments
-- **Customizable**: Multiple chat templates and configurable parameters
-- **Performance Optimized**: Chunking, caching, and efficient embedding generation
+### Advanced AI Capabilities
+- **🎯 Auto-Detecting Chat Templates**: Automatically detects and applies the correct chat template format
+- **🔧 Robust GGUF Processing**: Enhanced metadata reading with comprehensive error handling
+- **🤖 Local LLM Support**: Uses GGUF format models via llama-cpp-python
+- **📚 Multiple Document Formats**: Supports PDF, DOCX, TXT, and Markdown files
+- **🔍 Vector Search**: Efficient document retrieval using ChromaDB and sentence transformers
+- **💬 Interactive Chat**: Real-time conversation interface
+- **⚙️ Flexible Configuration**: Support for both YAML configuration files and command-line arguments
+- **🎨 Customizable**: Multiple chat templates and configurable parameters
+- **⚡ Performance Optimized**: Chunking, caching, and efficient embedding generation
 
 ## Installation 🚀
 
 ### Prerequisites
-
 - Python 3.8 or higher
 - At least 8GB RAM (16GB+ recommended for larger models)
 - CUDA-compatible GPU (optional, for GPU acceleration)
 
 ### Install Dependencies
-
 ```bash
 # Clone the repository
 git clone https://github.com/eltay89/DocuChat.git
@@ -32,14 +42,11 @@ pip install -r requirements.txt
 ```
 
 ### Download a Model
-
 Download a GGUF format model from Hugging Face. Popular options:
-
 ```bash
 # Example: Download a Llama 2 7B model
 wget https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf
 ```
-
 Or browse models at: https://huggingface.co/models?library=gguf
 
 ## Configuration 📋
@@ -47,7 +54,6 @@ Or browse models at: https://huggingface.co/models?library=gguf
 DocuChat supports dual configuration through YAML files and command-line arguments, with command-line arguments taking precedence.
 
 ### YAML Configuration
-
 The default configuration file is `config/config.yaml`. You can specify a custom config file using the `--config` argument.
 
 #### Using Default Config
@@ -60,10 +66,8 @@ python docuchat.py
 python docuchat.py --config my_config.yaml
 ```
 
-### Configuration Structure
-
+#### Configuration Structure
 The YAML configuration file supports the following sections:
-
 - **model**: LLM settings (path, context length, sampling parameters)
 - **documents**: Document processing settings (folder path, chunking)
 - **embeddings**: Embedding model configuration
@@ -73,10 +77,8 @@ The YAML configuration file supports the following sections:
 - **logging**: Logging configuration
 - **performance**: Performance optimization settings
 
-### Mixed Configuration Example
-
+#### Mixed Configuration Example
 You can combine YAML configuration with command-line overrides:
-
 ```bash
 # Use config.yaml but override model and folder paths
 python docuchat.py --model_path ./custom-model.gguf --folder_path ./my-docs
@@ -109,7 +111,6 @@ python docuchat.py --model_path ./custom-model.gguf --folder_path ./my-docs
 ## Usage Examples 📖
 
 ### Basic Usage with YAML Config
-
 ```bash
 # Using default config file (config/config.yaml)
 python docuchat.py
@@ -119,21 +120,18 @@ python docuchat.py --config my_config.yaml
 ```
 
 ### Command Line Only
-
 ```bash
 # Specify all settings via command line
 python docuchat.py --config "" --model_path ./models/llama-2-7b.gguf --folder_path ./documents
 ```
 
 ### Mixed Configuration
-
 ```bash
 # Use YAML config but override specific settings
 python docuchat.py --model_path ./custom-model.gguf --temperature 0.9 --verbose
 ```
 
 ### Chat Template Examples
-
 ```bash
 # Use ChatML format
 python docuchat.py --chat_template chatml
@@ -146,14 +144,12 @@ python docuchat.py --chat_template alpaca
 ```
 
 ### Single Query Mode
-
 ```bash
 # Process a single query without interactive mode
 python docuchat.py --query "What is the main topic of the documents?"
 ```
 
 ### Advanced Usage
-
 ```bash
 # High-performance setup with custom settings
 python docuchat.py \
@@ -170,13 +166,11 @@ python docuchat.py \
 ## Interactive Commands 💬
 
 Once in interactive mode, you can use these commands:
-
 - `help` - Show available commands
 - `quit`, `exit`, `bye` - Exit the application
 - Any other text - Chat with your documents
 
 ## Supported File Formats 📄
-
 - **PDF** (.pdf) - Extracted using PyPDF2
 - **Word Documents** (.docx, .doc) - Processed with python-docx
 - **Text Files** (.txt) - Plain text
@@ -188,57 +182,108 @@ Once in interactive mode, you can use these commands:
 2. **Embedding Generation**: Text chunks are converted to vector embeddings using sentence transformers
 3. **Vector Storage**: Embeddings are stored in ChromaDB for efficient similarity search
 4. **Query Processing**: User queries are embedded and matched against document chunks
-5. **Response Generation**: Retrieved context is provided to the LLM for generating responses
+5. **Context Retrieval**: Most relevant document chunks are retrieved based on similarity
+6. **Response Generation**: Retrieved context is combined with the query and sent to the LLM
+7. **Chat Template Application**: Responses are formatted using the appropriate chat template
 
-## Configuration Priority 🎯
-
-Settings are applied in the following order (later overrides earlier):
-
-1. Default values in `DocuChatConfig`
-2. YAML configuration file settings
-3. Command-line argument overrides
-
-This allows for flexible configuration management where you can:
-- Set common settings in YAML files
-- Override specific settings via command line
-- Use different config files for different scenarios
-
-## Performance Tips 🚀
-
-- **GPU Acceleration**: Use `--n_gpu_layers` to offload layers to GPU
-- **Memory Management**: Adjust `--n_ctx` based on available RAM
-- **Chunk Size**: Larger chunks provide more context but slower retrieval
-- **Embedding Model**: Balance between speed and quality:
-  - Fast: `all-MiniLM-L6-v2`
-  - Better: `all-mpnet-base-v2`
-  - Q&A optimized: `multi-qa-MiniLM-L6-cos-v1`
-
-## Troubleshooting 🔍
+## Troubleshooting 🔧
 
 ### Common Issues
 
-1. **Model not found**: Ensure the model path is correct and the file exists
-2. **Out of memory**: Reduce `n_ctx` or use a smaller model
-3. **Slow performance**: Enable GPU layers or use a smaller embedding model
-4. **No documents loaded**: Check folder path and file permissions
+#### GGUF Model Loading Issues
+- **Error**: "Failed to load GGUF model"
+  - **Solution**: Ensure the model file exists and is a valid GGUF format
+  - **Check**: Verify the model path is correct and the file isn't corrupted
+  - **Debug**: Use `--verbose` flag for detailed error messages
 
-### Debug Mode
+#### Chat Template Detection
+- **Error**: "Could not detect chat template"
+  - **Solution**: Manually specify template with `--chat_template` parameter
+  - **Options**: `chatml`, `llama2`, `alpaca`, or `auto` for auto-detection
 
-```bash
-python docuchat.py --verbose
+#### Memory Issues
+- **Error**: "Out of memory" or slow performance
+  - **Solution**: Reduce `n_ctx` parameter or use a smaller model
+  - **Alternative**: Enable GPU acceleration if available
+
+#### Document Processing
+- **Error**: "No documents found" or "Failed to process documents"
+  - **Solution**: Check folder path and ensure supported file formats
+  - **Verify**: Documents folder contains .pdf, .docx, .txt, or .md files
+
+### Performance Optimization
+- Use GPU acceleration when available
+- Adjust chunk size based on document types
+- Reduce context window for faster inference
+- Use quantized models (Q4_K_M, Q5_K_M) for better performance
+
+## Development 👨‍💻
+
+### Project Structure
+```
+DocuChat/
+├── docuchat.py          # Main application
+├── config/              # Configuration files
+├── documents/           # Place your documents here
+├── models/              # Place your GGUF models here
+├── tests/               # Test suite
+├── examples/            # Usage examples
+└── docs/                # Documentation
 ```
 
-## Contributing 🤝
+### Testing
+```bash
+# Run all tests
+python -m pytest tests/
 
-Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests.
+# Run specific test categories
+python -m pytest tests/test_chat_templates.py
+python -m pytest tests/test_docuchat.py
 
-## License 📜
+# Test GGUF auto-detection
+python test_auto_detection.py
+```
+
+### Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
+
+## Roadmap 🗺️
+
+### Upcoming Features
+- **Enhanced GGUF Support**: Additional metadata extraction and validation
+- **Multi-modal Support**: Image and audio document processing
+- **Advanced RAG**: Hybrid search and re-ranking capabilities
+- **Web Interface**: Browser-based chat interface
+- **API Endpoints**: RESTful API for integration
+- **Cloud Deployment**: Docker containers and cloud deployment guides
+
+### Performance Improvements
+- **Streaming Responses**: Real-time response generation
+- **Caching System**: Intelligent caching for faster responses
+- **Parallel Processing**: Multi-threaded document processing
+- **Memory Optimization**: Reduced memory footprint
+
+## License 📄
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## Support 🤝
+
+- **Issues**: Report bugs and request features on GitHub Issues
+- **Discussions**: Join community discussions on GitHub Discussions
+- **Documentation**: Check the docs/ folder for detailed guides
+
 ## Acknowledgments 🙏
 
-- [llama-cpp-python](https://github.com/abetlen/llama-cpp-python) for local LLM inference
-- [ChromaDB](https://github.com/chroma-core/chroma) for vector storage
-- [Sentence Transformers](https://github.com/UKPLab/sentence-transformers) for embeddings
-- The open-source AI community for making this possible
+- **llama-cpp-python**: For excellent GGUF model support
+- **ChromaDB**: For efficient vector storage and retrieval
+- **Sentence Transformers**: For high-quality embeddings
+- **Hugging Face**: For the amazing model ecosystem
+
+---
+
+**Happy chatting with your documents! 🚀📚**
