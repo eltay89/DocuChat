@@ -4,6 +4,13 @@ A powerful RAG (Retrieval-Augmented Generation) application that lets you chat w
 
 ## Recent Updates 🆕
 
+### Version 2.1 - Streaming Output & Enhanced User Experience
+- **⚡ Real-time Streaming**: Character-by-character response generation for better user experience
+- **🎛️ Flexible Streaming Control**: Configure streaming via config.yaml, CLI arguments, or use defaults
+- **🔧 Enhanced Configuration**: Streaming enabled by default with easy override options
+- **📊 Status Display**: Visual indicators for current streaming configuration
+- **🚀 Improved Performance**: Optimized response generation with streaming capabilities
+
 ### Version 2.0 - Enhanced GGUF Auto-Detection
 - **🎯 Robust GGUF Processing**: Improved metadata reading with fallback mechanisms
 - **🔧 Enhanced Error Handling**: Better diagnostics for model loading issues
@@ -14,12 +21,13 @@ A powerful RAG (Retrieval-Augmented Generation) application that lets you chat w
 ## Features ✨
 
 ### Advanced AI Capabilities
+- **⚡ Real-time Streaming**: Character-by-character response generation with configurable streaming
 - **🎯 Auto-Detecting Chat Templates**: Automatically detects and applies the correct chat template format
 - **🔧 Robust GGUF Processing**: Enhanced metadata reading with comprehensive error handling
 - **🤖 Local LLM Support**: Uses GGUF format models via llama-cpp-python
 - **📚 Multiple Document Formats**: Supports PDF, DOCX, TXT, and Markdown files
 - **🔍 Vector Search**: Efficient document retrieval using ChromaDB and sentence transformers
-- **💬 Interactive Chat**: Real-time conversation interface
+- **💬 Interactive Chat**: Real-time conversation interface with streaming output
 - **⚙️ Flexible Configuration**: Support for both YAML configuration files and command-line arguments
 - **🎨 Customizable**: Multiple chat templates and configurable parameters
 - **⚡ Performance Optimized**: Chunking, caching, and efficient embedding generation
@@ -76,6 +84,27 @@ The YAML configuration file supports the following sections:
 - **ui**: User interface and chat settings
 - **logging**: Logging configuration
 - **performance**: Performance optimization settings
+- **advanced**: Advanced features including streaming configuration
+
+#### Streaming Configuration
+Streaming is configured in the `advanced.experimental` section of your YAML file:
+
+```yaml
+advanced:
+  experimental:
+    streaming: true  # Enable character-by-character output (default: true)
+```
+
+**Streaming Priority Order:**
+1. **Command-line arguments** (`--streaming` or `--no-streaming`) - Highest priority
+2. **YAML configuration** (`advanced.experimental.streaming`) - Medium priority  
+3. **Default value** (`true`) - Lowest priority
+
+**Streaming Benefits:**
+- **Real-time feedback**: See responses as they're generated
+- **Better user experience**: No waiting for complete response
+- **Responsive interface**: Immediate visual feedback
+- **Interruptible**: Can stop generation if needed
 
 #### Mixed Configuration Example
 You can combine YAML configuration with command-line overrides:
@@ -105,6 +134,10 @@ python docuchat.py --model_path ./custom-model.gguf --folder_path ./my-docs
 - `--download_embedding_model`: Download embedding model from Hugging Face to embeddings/ folder
 - `--n_retrieve`: Number of documents to retrieve (default: 5)
 - `--no-rag`: Disable RAG (Retrieval-Augmented Generation) and use LLM only
+
+### Streaming Options
+- `--streaming`: Enable streaming output (character-by-character response generation)
+- `--no-streaming`: Disable streaming output (show complete response at once)
 
 ### Other Options
 - `--system_prompt`: Custom system prompt
@@ -174,9 +207,21 @@ python docuchat.py --no-rag --model_path ./models/llama-2-7b.gguf
 python docuchat.py --no-rag --query "Explain quantum computing" --model_path ./model.gguf
 ```
 
+### Streaming Configuration Examples
+```bash
+# Enable streaming output (default behavior)
+python docuchat.py --streaming
+
+# Disable streaming for complete responses
+python docuchat.py --no-streaming
+
+# Use config file streaming setting
+python docuchat.py  # Uses config.yaml advanced.experimental.streaming setting
+```
+
 ### Advanced Usage
 ```bash
-# High-performance setup with custom settings
+# High-performance setup with custom settings and streaming
 python docuchat.py \
   --model_path ./models/llama-2-13b.gguf \
   --folder_path ./research_papers \
@@ -185,15 +230,25 @@ python docuchat.py \
   --n_retrieve 8 \
   --temperature 0.3 \
   --max_tokens 4096 \
+  --streaming \
   --verbose
 ```
 
 ## Interactive Commands 💬
 
 Once in interactive mode, you can use these commands:
-- `help` - Show available commands
+- `help` - Show available commands and current configuration
 - `quit`, `exit`, `bye` - Exit the application
 - Any other text - Chat with your documents
+
+### Status Information
+The application displays current configuration including:
+- **Model**: Currently loaded GGUF model
+- **Documents**: Number of processed documents and chunks
+- **Embedding Model**: Active embedding model
+- **Streaming**: Current streaming status (Enabled/Disabled)
+- **RAG Mode**: Whether document retrieval is active
+- **Context Window**: Current context window size
 
 ## Embedding Models 🧠
 
@@ -245,6 +300,8 @@ python docuchat.py --embedding_model "/path/to/custom/model"
 
 ## How It Works 🔧
 
+### How It Works 🔧
+
 ### RAG Mode (Default)
 1. **Document Processing**: Documents are loaded and split into overlapping chunks
 2. **Embedding Generation**: Text chunks are converted to vector embeddings using sentence transformers
@@ -252,10 +309,34 @@ python docuchat.py --embedding_model "/path/to/custom/model"
 4. **Query Processing**: User queries are embedded and matched against document chunks
 5. **Context Retrieval**: Most relevant document chunks are retrieved based on similarity
 6. **Response Generation**: Retrieved context is combined with the query and sent to the LLM
-7. **Chat Template Application**: Responses are formatted using the appropriate chat template
+7. **Streaming Output**: Responses are generated token-by-token and displayed in real-time
+8. **Chat Template Application**: Responses are formatted using the appropriate chat template
 
 ### LLM-Only Mode (--no-rag)
 When using the `--no-rag` flag, DocuChat bypasses the document retrieval process and sends queries directly to the language model, functioning as a standard chatbot without document context.
+
+### Streaming Implementation
+DocuChat implements two response generation modes:
+
+#### Streaming Mode (Default)
+```python
+def generate_response_streaming(self, prompt):
+    for token in self.llm(prompt, stream=True):
+        print(token['choices'][0]['text'], end='', flush=True)
+```
+- **Real-time Output**: Tokens are displayed as they're generated
+- **Better UX**: Users see immediate feedback
+- **Interruptible**: Generation can be stopped mid-stream
+
+#### Non-Streaming Mode
+```python
+def generate_response(self, prompt):
+    response = self.llm(prompt, stream=False)
+    return response['choices'][0]['text']
+```
+- **Complete Response**: Full response generated before display
+- **Batch Processing**: Useful for automated processing
+- **Consistent Timing**: Predictable response delivery
 
 ### Vector Database Storage 💾
 **Yes, this application stores a vector database!** The app uses ChromaDB to persistently store vector embeddings of your documents. Here's how:
@@ -275,14 +356,17 @@ When using the `--no-rag` flag, DocuChat bypasses the document retrieval process
 RAG is a technique that combines:
 - **Retrieval**: Finding relevant information from a knowledge base
 - **Generation**: Using an AI model to create responses based on retrieved information
+- **Streaming**: Real-time token-by-token response generation for better user experience
 
-Think of it like an open-book exam where the AI can look up relevant information before answering your question.
+Think of it like an open-book exam where the AI can look up relevant information before answering your question, and then explains the answer as they think through it.
 
-#### Why Use RAG?
+#### Why Use RAG with Streaming?
 1. **Knowledge Limitation**: LLMs have a knowledge cutoff date and can't access real-time or private information
 2. **Hallucination Reduction**: By grounding responses in actual documents, we reduce made-up information
 3. **Domain Specificity**: Allows the AI to become an expert on your specific documents
 4. **Cost Efficiency**: Cheaper than fine-tuning models on custom data
+5. **Real-time Feedback**: Streaming provides immediate visual feedback during response generation
+6. **Better UX**: Users don't wait for complete responses, improving perceived performance
 
 ### Key Libraries and Their Roles 📚
 
@@ -383,16 +467,24 @@ def retrieve_relevant_chunks(self, query, n_results=5):
 3. Top-k most similar chunks retrieved
 4. Similarity scores help rank relevance
 
-#### 4. Response Generation
+#### 4. Response Generation with Streaming
 ```python
-def generate_response(self, query, context):
+def generate_response_streaming(self, query, context):
     # Combine retrieved context with user query
     prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer:"
     
-    # Generate response using local LLM
-    response = self.llm(prompt, max_tokens=self.max_tokens)
-    return response
+    # Generate response using local LLM with streaming
+    for token in self.llm(prompt, stream=True, max_tokens=self.max_tokens):
+        token_text = token['choices'][0]['text']
+        print(token_text, end='', flush=True)
+        yield token_text
 ```
+
+**Streaming Benefits:**
+- **Immediate Feedback**: Users see responses as they're generated
+- **Perceived Performance**: Feels faster even if total time is the same
+- **Interruptible**: Can stop generation early if needed
+- **Progressive Disclosure**: Information appears progressively
 
 ### Why This Architecture Works 🎯
 
@@ -415,23 +507,27 @@ def generate_response(self, query, context):
 - All processing happens locally
 - No data sent to external services
 - Full control over model behavior and responses
+- Real-time streaming without external dependencies
 
 ### Learning Exercises 📝
 
 #### Beginner Level
-1. **Experiment with chunk sizes**: Try different values and see how it affects retrieval quality
-2. **Compare embedding models**: Test different sentence transformer models
-3. **Analyze similarity scores**: Look at the relevance scores returned by ChromaDB
+1. **Experiment with streaming**: Compare streaming vs non-streaming modes
+2. **Experiment with chunk sizes**: Try different values and see how it affects retrieval quality
+3. **Compare embedding models**: Test different sentence transformer models
+4. **Analyze similarity scores**: Look at the relevance scores returned by ChromaDB
 
 #### Intermediate Level
-1. **Implement custom document loaders**: Add support for new file formats
-2. **Experiment with retrieval strategies**: Try different numbers of retrieved chunks
-3. **Customize chat templates**: Create templates for specific use cases
+1. **Optimize streaming performance**: Experiment with different model sizes and streaming settings
+2. **Implement custom document loaders**: Add support for new file formats
+3. **Experiment with retrieval strategies**: Try different numbers of retrieved chunks
+4. **Customize chat templates**: Create templates for specific use cases
 
 #### Advanced Level
-1. **Implement hybrid search**: Combine semantic and keyword search
-2. **Add re-ranking**: Use cross-encoders to re-rank retrieved results
-3. **Optimize performance**: Profile and optimize the embedding and retrieval pipeline
+1. **Implement streaming optimizations**: Add token buffering and smart chunking
+2. **Implement hybrid search**: Combine semantic and keyword search
+3. **Add re-ranking**: Use cross-encoders to re-rank retrieved results
+4. **Optimize performance**: Profile and optimize the embedding and retrieval pipeline
 
 ### Common Pitfalls and Solutions 🚨
 
@@ -454,20 +550,41 @@ def generate_response(self, query, context):
 **Solutions**:
 - Use smaller models
 - Process documents in batches
-- Implement streaming for large responses
+- Enable streaming to reduce memory pressure
+- Use quantized models for better memory efficiency
+
+#### 4. **Streaming Performance Issues**
+**Problem**: Slow or choppy streaming output
+**Solutions**:
+- Use faster models (Q4_K_M quantization)
+- Reduce context window size
+- Optimize token generation settings
+- Ensure adequate system resources
 
 ### Further Learning Resources 📖
 
-1. **Vector Databases**: Learn about Pinecone, Weaviate, and Qdrant
-2. **Embedding Models**: Explore BGE, E5, and other state-of-the-art models
-3. **LLM Optimization**: Study quantization, pruning, and distillation techniques
-4. **RAG Improvements**: Research advanced techniques like HyDE, RAG-Fusion, and RAPTOR
+1. **Streaming Technologies**: Learn about WebSockets, Server-Sent Events, and real-time communication
+2. **Vector Databases**: Learn about Pinecone, Weaviate, and Qdrant
+3. **Embedding Models**: Explore BGE, E5, and other state-of-the-art models
+4. **LLM Optimization**: Study quantization, pruning, and distillation techniques
+5. **RAG Improvements**: Research advanced techniques like HyDE, RAG-Fusion, and RAPTOR
+6. **Performance Optimization**: Study token generation optimization and streaming architectures
 
-This architecture demonstrates fundamental concepts in modern AI applications: vector search, semantic understanding, and local AI deployment. Understanding these concepts will help you build more sophisticated AI systems!
+This architecture demonstrates fundamental concepts in modern AI applications: vector search, semantic understanding, local AI deployment, and real-time streaming. Understanding these concepts will help you build more sophisticated AI systems!
 
 ## Troubleshooting 🔧
 
 ### Common Issues
+
+#### Streaming Output Issues
+- **Problem**: Streaming not working or responses appear all at once
+  - **Solution**: Verify streaming is enabled with `--streaming` flag
+  - **Check**: Ensure `advanced.experimental.streaming: true` in config.yaml
+  - **Debug**: Use `help` command to check current streaming status
+
+- **Problem**: Streaming too slow or choppy
+  - **Solution**: Reduce model size or context window
+  - **Alternative**: Use quantized models (Q4_K_M) for faster token generation
 
 #### GGUF Model Loading Issues
 - **Error**: "Failed to load GGUF model"
@@ -491,23 +608,34 @@ This architecture demonstrates fundamental concepts in modern AI applications: v
   - **Verify**: Documents folder contains .pdf, .docx, .txt, or .md files
 
 ### Performance Optimization
-- Use GPU acceleration when available
-- Adjust chunk size based on document types
-- Reduce context window for faster inference
-- Use quantized models (Q4_K_M, Q5_K_M) for better performance
+- **Streaming Performance**: Enable streaming for real-time feedback
+- **GPU Acceleration**: Use GPU when available for faster token generation
+- **Model Selection**: Use quantized models (Q4_K_M, Q5_K_M) for better performance
+- **Context Management**: Reduce context window for faster inference
+- **Document Processing**: Adjust chunk size based on document types
+- **Memory Management**: Monitor memory usage with streaming enabled
 
 ## Development 👨‍💻
 
 ### Project Structure
 ```
 DocuChat/
-├── docuchat.py          # Main application
-├── config/              # Configuration files
+├── docuchat.py          # Main application with streaming support
+├── config/
+│   └── config.yaml      # Configuration including streaming settings
 ├── documents/           # Place your documents here
+│   └── .gitkeep
 ├── models/              # Place your GGUF models here
+│   └── .gitkeep
+├── embeddings/          # Downloaded embedding models
+│   ├── .gitkeep
+│   └── README.md
 ├── tests/               # Test suite
-├── examples/            # Usage examples
-└── docs/                # Documentation
+│   ├── test_docuchat.py
+│   └── test_embedding_models.py
+├── requirements.txt     # Python dependencies
+├── README.md           # This comprehensive documentation
+└── .gitignore          # Git ignore patterns
 ```
 
 ### Testing
@@ -541,10 +669,11 @@ python test_auto_detection.py
 - **Cloud Deployment**: Docker containers and cloud deployment guides
 
 ### Performance Improvements
-- **Streaming Responses**: Real-time response generation
+- **Enhanced Streaming**: Improved character-by-character response generation
+- **Streaming Controls**: Fine-grained streaming configuration options
 - **Caching System**: Intelligent caching for faster responses
 - **Parallel Processing**: Multi-threaded document processing
-- **Memory Optimization**: Reduced memory footprint
+- **Memory Optimization**: Reduced memory footprint with streaming
 
 ## License 📄
 

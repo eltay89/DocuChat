@@ -357,6 +357,7 @@ class DocuChatConfig:
         # UI and interaction
         self.verbose = False
         self.interactive = True
+        self.streaming = True  # Default to streaming enabled
         
         # Performance
         self.batch_size = 512
@@ -416,6 +417,11 @@ class DocuChatConfig:
                 config.system_prompt = ui_config.get('system_prompt', config.system_prompt)
                 config.chat_template = ui_config.get('chat_template', config.chat_template)
             
+            # Load streaming configuration from advanced.experimental section
+            if 'advanced' in yaml_config and 'experimental' in yaml_config['advanced']:
+                experimental_config = yaml_config['advanced']['experimental']
+                config.streaming = experimental_config.get('streaming', config.streaming)
+            
             if 'performance' in yaml_config:
                 perf_config = yaml_config['performance']
                 config.batch_size = perf_config.get('batch_size', config.batch_size)
@@ -459,6 +465,12 @@ class DocuChatConfig:
             self.system_prompt = args.system_prompt
         if hasattr(args, 'chat_template') and args.chat_template != "auto":
             self.chat_template = args.chat_template
+        
+        # Handle streaming configuration
+        if hasattr(args, 'no_streaming') and args.no_streaming:
+            self.streaming = False
+        elif hasattr(args, 'streaming') and args.streaming:
+            self.streaming = True
 
 
 class DocuChat:
@@ -554,6 +566,41 @@ class DocuChat:
         
         return response['choices'][0]['text'].strip()
     
+    def generate_response_streaming(self, query: str, context_docs: List[str]) -> str:
+        """Generate response using the LLM with retrieved context and streaming output."""
+        # Prepare context
+        context = "\n\n".join(context_docs) if context_docs else "No relevant context found."
+        
+        # Create prompt
+        if self.config.chat_template == "chatml":
+            prompt = f"<|im_start|>system\n{self.config.system_prompt}<|im_end|>\n<|im_start|>user\nContext:\n{context}\n\nQuestion: {query}<|im_end|>\n<|im_start|>assistant\n"
+        elif self.config.chat_template == "llama2":
+            prompt = f"<s>[INST] <<SYS>>\n{self.config.system_prompt}\n<</SYS>>\n\nContext:\n{context}\n\nQuestion: {query} [/INST]"
+        elif self.config.chat_template == "alpaca":
+            prompt = f"### Instruction:\n{self.config.system_prompt}\n\n### Input:\nContext:\n{context}\n\nQuestion: {query}\n\n### Response:\n"
+        else:  # auto or simple
+            prompt = f"{self.config.system_prompt}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:"
+        
+        # Generate response with streaming
+        full_response = ""
+        stream = self.llm(
+            prompt,
+            max_tokens=self.config.max_tokens,
+            temperature=self.config.temperature,
+            top_p=self.config.top_p,
+            top_k=self.config.top_k,
+            repeat_penalty=self.config.repeat_penalty,
+            stop=["\n\n", "Question:", "Context:"] if self.config.chat_template == "auto" else None,
+            stream=True
+        )
+        
+        for output in stream:
+            token = output['choices'][0]['text']
+            print(token, end='', flush=True)
+            full_response += token
+        
+        return full_response.strip()
+    
     def chat(self, query: str) -> str:
         """Process a chat query and return response."""
         if not self.llm:
@@ -582,12 +629,16 @@ class DocuChat:
         elif self.config.no_rag and self.config.verbose:
             logging.info("RAG disabled - using LLM only mode")
         
-        # Generate response
-        response = self.generate_response(query, context_docs)
+        # Generate response based on streaming configuration
+        if self.config.streaming:
+            response = self.generate_response_streaming(query, context_docs)
+        else:
+            response = self.generate_response(query, context_docs)
+            print(response, end="", flush=True)
         
         # Add a subtle indicator if documents were used
         if docs_used and not self.config.verbose:
-            response += f"\n\n{Fore.CYAN}💡 Response based on your documents{Style.RESET_ALL}"
+            print(f"\n\n{Fore.CYAN}💡 Response based on your documents{Style.RESET_ALL}")
         
         return response
     
@@ -626,7 +677,8 @@ class DocuChat:
                 
                 print(f"\n{Fore.GREEN}🤖 DocuChat: {Style.RESET_ALL}", end="", flush=True)
                 response = self.chat(user_input)
-                print(response)
+                # Response is already printed by streaming, just add a newline
+                print()
                 
             except KeyboardInterrupt:
                 print(f"\n\n{Fore.YELLOW}👋 Goodbye!{Style.RESET_ALL}")
@@ -680,6 +732,7 @@ class DocuChat:
         
         print(f"  Embedding model: {self.config.embedding_model}")
         print(f"  Retrieval count: {self.config.n_retrieve}")
+        print(f"  Streaming: {Fore.GREEN if self.config.streaming else Fore.RED}{'Enabled' if self.config.streaming else 'Disabled'}{Style.RESET_ALL}")
 
 
 def parse_arguments():
@@ -819,6 +872,16 @@ def parse_arguments():
         "--verbose",
         action="store_true",
         help="Enable verbose logging"
+    )
+    parser.add_argument(
+        "--streaming",
+        action="store_true",
+        help="Enable streaming output (default: True, use --no-streaming to disable)"
+    )
+    parser.add_argument(
+        "--no-streaming",
+        action="store_true",
+        help="Disable streaming output"
     )
     parser.add_argument(
         "--query",
