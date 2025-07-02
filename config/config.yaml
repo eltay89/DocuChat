@@ -184,7 +184,7 @@ advanced:
   # Experimental features
   experimental:
     multi_modal: false
-    streaming: false
+    streaming: true
     function_calling: false
   
   # Custom plugins
