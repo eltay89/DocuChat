@@ -119,15 +119,9 @@ vector_store:
   # Use descriptive names for different document sets
   collection_name: "documents"
   
-  # Persistence settings
-  # Vector database will be saved to this directory
-  persist_directory: "./chroma_db"
-  
-  # Distance metric for similarity search
-  # • cosine: Best for most text applications (recommended)
-  # • euclidean: Good for numerical data
-  # • manhattan: Alternative distance metric
-  distance_metric: "cosine"
+  # Note: The following features are not yet implemented
+  # persist_directory: "./chroma_db"
+  # distance_metric: "cosine"
 
 # ┌─────────────────────────────────────────────────────────────────────────────┐
 # │ RAG (RETRIEVAL-AUGMENTED GENERATION) CONFIGURATION                         │
@@ -143,32 +137,9 @@ rag:
   # Range: 0.0 (all results) to 1.0 (exact matches only)
   similarity_threshold: 0.7
   
-  # Maximum context length (in characters)
-  # Adjust based on your model's context window
-  max_context_length: 4000
-  
-  # Context combination strategy
-  # • concatenate: Simple joining (fastest)
-  # • summarize: AI-powered summarization (slower)
-  # • rank: Reorder by relevance (balanced)
-  context_strategy: "concatenate"
-
-# MCP (Model Context Protocol) Configuration
-mcp:
-  # Enable MCP server functionality
-  enabled: false
-  
-  # MCP server settings
-  server:
-    host: "localhost"
-    port: 8000
-    
-  # MCP tools configuration
-  tools:
-    document_search: true
-    document_upload: true
-    chat_history: true
-
+  # Note: The following features are not yet implemented
+  # max_context_length: 4000
+  # context_strategy: "concatenate"
 
 
 # ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -191,18 +162,17 @@ ui:
   
   # ┌─── Display Settings ───┐
   verbose: false            # Show detailed processing information
-  show_sources: true        # Display source documents for answers
-  show_timing: false        # Show response generation timing
   streaming: true           # Enable real-time response streaming
   
-  # ┌─── Color Scheme ───┐
-  # Terminal output colors for better readability
-  colors:
-    user: "blue"           # User input color
-    assistant: "green"     # AI response color
-    system: "yellow"       # System messages color
-    error: "red"           # Error messages color
-    info: "cyan"           # Information messages color
+  # Note: The following UI features are not yet implemented
+  # show_sources: true        # Display source documents for answers
+  # show_timing: false        # Show response generation timing
+  # colors:
+  #   user: "blue"           # User input color
+  #   assistant: "green"     # AI response color
+  #   system: "yellow"       # System messages color
+  #   error: "red"           # Error messages color
+  #   info: "cyan"           # Information messages color
 
 # Logging Configuration
 logging:
@@ -212,14 +182,12 @@ logging:
   # Log file path (null = console only)
   file: null
   
-  # Log format
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  
-  # Rotate log files
-  rotation:
-    enabled: false
-    max_size: "10MB"
-    backup_count: 5
+  # Note: The following logging features are not yet implemented
+  # format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  # rotation:
+  #   enabled: false
+  #   max_size: "10MB"
+  #   backup_count: 5
 
 # ┌─────────────────────────────────────────────────────────────────────────────┐
 # │ PERFORMANCE CONFIGURATION                                                   │
@@ -234,97 +202,68 @@ performance:
   use_mmap: true          # Use memory mapping (recommended)
                           # Reduces memory usage for large models
   
-  # ┌─── Response Caching ───┐
-  cache:
-    enabled: true         # Enable response caching for faster repeated queries
-    max_size: 1000        # Maximum cached responses
-    ttl: 3600            # Cache time-to-live (seconds)
-                          # 3600 = 1 hour, 86400 = 24 hours
-  
-  # ┌─── Parallel Processing ───┐
-  max_workers: 4          # Number of worker threads for document processing
-                          # Set to number of CPU cores for optimal performance
-  
-  # ┌─── Optimization Settings ───┐
-  preload_embeddings: true  # Preload embedding model at startup
-  lazy_loading: false      # Load components on-demand vs at startup
+  # Note: The following performance features are not yet implemented
+  # cache:
+  #   enabled: true         # Enable response caching for faster repeated queries
+  #   max_size: 1000        # Maximum cached responses
+  #   ttl: 3600            # Cache time-to-live (seconds)
+  # max_workers: 4          # Number of worker threads for document processing
+  # preload_embeddings: true  # Preload embedding model at startup
+  # lazy_loading: false      # Load components on-demand vs at startup
 
-# Development Configuration
-development:
-  # Debug settings
-  debug: false
-  profile: false
-  
-  # Hot reload for development
-  hot_reload: false
-  
-  # API settings for development
-  api:
-    enabled: false
-    host: "localhost"
-    port: 8080
-    cors_enabled: true
+# Note: The following sections contain features not yet implemented
+# and are commented out to avoid confusion
 
-# Advanced Features
-advanced:
-  # Experimental features
-  experimental:
-    multi_modal: false
-    streaming: true
-    function_calling: false
-  
-  # Custom plugins
-  plugins:
-    enabled: false
-    directory: "./plugins"
-  
-  # Integration settings
-  integrations:
-    langchain: false
-    llamaindex: false
-    openai_api: false
+# Development Configuration (NOT IMPLEMENTED)
+# development:
+#   debug: false
+#   profile: false
+#   hot_reload: false
+#   api:
+#     enabled: false
+#     host: "localhost"
+#     port: 8080
+#     cors_enabled: true
 
-# Security Configuration
-security:
-  # Input validation
-  max_input_length: 10000
-  
-  # Rate limiting
-  rate_limit:
-    enabled: false
-    requests_per_minute: 60
-  
-  # Content filtering
-  content_filter:
-    enabled: false
-    blocked_patterns: []
-  
-  # API security
-  api_key: null
-  allowed_origins: ["*"]
+# Advanced Features (NOT IMPLEMENTED)
+# advanced:
+#   experimental:
+#     multi_modal: false
+#     streaming: true
+#     function_calling: false
+#   plugins:
+#     enabled: false
+#     directory: "./plugins"
+#   integrations:
+#     langchain: false
+#     llamaindex: false
+#     openai_api: false
 
-# Environment-specific overrides
-# These can be used to override settings based on environment
-environments:
-  development:
-    logging:
-      level: "DEBUG"
-    ui:
-      verbose: true
-  
-  production:
-    logging:
-      level: "WARNING"
-      file: "./logs/docuchat.log"
-    performance:
-      cache:
-        enabled: true
-    security:
-      rate_limit:
-        enabled: true
-  
-  testing:
-    model:
-      max_tokens: 100
-    rag:
-      retrieve_count: 2
+# Security Configuration (NOT IMPLEMENTED)
+# security:
+#   max_input_length: 10000
+#   rate_limit:
+#     enabled: false
+#     requests_per_minute: 60
+#   content_filter:
+#     enabled: false
+#     blocked_patterns: []
+#   api_key: null
+#   allowed_origins: ["*"]
+
+# Environment-specific overrides (NOT IMPLEMENTED)
+# environments:
+#   development:
+#     logging:
+#       level: "DEBUG"
+#     ui:
+#       verbose: true
+#   production:
+#     logging:
+#       level: "WARNING"
+#       file: "./logs/docuchat.log"
+#   testing:
+#     model:
+#       max_tokens: 100
+#     rag:
+#       retrieve_count: 2
