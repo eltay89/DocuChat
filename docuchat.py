@@ -11,13 +11,16 @@ import sys
 import argparse
 import logging
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Optional, Any, Tuple, Union, Set
 import yaml
 import warnings
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import hashlib
+import json
+from datetime import datetime
 
 # Suppress warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -87,11 +90,11 @@ except ImportError:
 class DocumentProcessor:
     """Handles loading and processing of various document formats."""
     
-    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 200):
+    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 200) -> None:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
     
-    def load_documents(self, folder_path: str) -> List[str]:
+    def load_documents(self, folder_path: Union[str, Path]) -> List[str]:
         """Load and process documents from a folder."""
         documents = []
         folder = Path(folder_path)
@@ -222,12 +225,152 @@ class DocumentProcessor:
         return chunks
 
 
-class VectorStore:
-    """Manages vector embeddings and similarity search using ChromaDB."""
+class FileMonitor:
+    """Monitors document folder for changes and manages file tracking."""
     
-    def __init__(self, collection_name: str = "documents", embedding_model: str = "all-MiniLM-L6-v2"):
+    def __init__(self, folder_path: Union[str, Path], cache_dir: str = "./vectordbs") -> None:
+        self.folder_path = Path(folder_path)
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(exist_ok=True)
+        
+        # File to store file metadata
+        self.metadata_file = self.cache_dir / "file_metadata.json"
+        self.file_metadata = self._load_metadata()
+        
+        # Supported file extensions
+        self.supported_extensions = {'.txt', '.pdf', '.docx', '.doc', '.md'}
+    
+    def _load_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """Load file metadata from cache."""
+        if self.metadata_file.exists():
+            try:
+                with open(self.metadata_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # Convert path strings back to Path objects
+                    for rel_path, metadata in data.items():
+                        if 'path' in metadata:
+                            metadata['path'] = Path(metadata['path'])
+                    return data
+            except Exception as e:
+                logging.warning(f"Failed to load file metadata: {e}")
+        return {}
+    
+    def _save_metadata(self) -> None:
+        """Save file metadata to cache."""
+        try:
+            # Convert Path objects to strings for JSON serialization
+            serializable_metadata = {}
+            for rel_path, data in self.file_metadata.items():
+                serializable_metadata[rel_path] = {
+                    'path': str(data['path']),
+                    'hash': data['hash'],
+                    'mtime': data['mtime'],
+                    'last_processed': data['last_processed']
+                }
+            
+            with open(self.metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(serializable_metadata, f, indent=2)
+        except Exception as e:
+            logging.error(f"Failed to save file metadata: {e}")
+    
+    def _get_file_hash(self, file_path: Path) -> str:
+        """Calculate SHA-256 hash of file content."""
+        hash_sha256 = hashlib.sha256()
+        try:
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    hash_sha256.update(chunk)
+            return hash_sha256.hexdigest()
+        except Exception as e:
+            logging.error(f"Failed to calculate hash for {file_path}: {e}")
+            return ""
+    
+    def scan_for_changes(self) -> Dict[str, List[Path]]:
+        """Scan folder for file changes and return categorized changes."""
+        if not self.folder_path.exists():
+            logging.warning(f"Document folder does not exist: {self.folder_path}")
+            return {'added': [], 'modified': [], 'removed': []}
+        
+        current_files = {}
+        changes = {'added': [], 'modified': [], 'removed': []}
+        
+        # Scan current files
+        for file_path in self.folder_path.rglob('*'):
+            if (file_path.is_file() and 
+                file_path.suffix.lower() in self.supported_extensions):
+                
+                rel_path = str(file_path.relative_to(self.folder_path))
+                file_hash = self._get_file_hash(file_path)
+                file_mtime = file_path.stat().st_mtime
+                
+                current_files[rel_path] = {
+                    'path': file_path,
+                    'hash': file_hash,
+                    'mtime': file_mtime,
+                    'last_processed': datetime.now().isoformat()
+                }
+                
+                # Check if file is new or modified
+                if rel_path not in self.file_metadata:
+                    changes['added'].append(file_path)
+                    logging.info(f"New file detected: {rel_path}")
+                elif (self.file_metadata[rel_path]['hash'] != file_hash or
+                      self.file_metadata[rel_path]['mtime'] != file_mtime):
+                    changes['modified'].append(file_path)
+                    logging.info(f"Modified file detected: {rel_path}")
+        
+        # Check for removed files
+        for rel_path in self.file_metadata:
+            if rel_path not in current_files:
+                changes['removed'].append(rel_path)
+                logging.info(f"Removed file detected: {rel_path}")
+        
+        # Update metadata
+        self.file_metadata = current_files
+        self._save_metadata()
+        
+        return changes
+    
+    def get_all_files(self) -> List[Path]:
+        """Get list of all tracked files."""
+        return [data['path'] for data in self.file_metadata.values() 
+                if data['path'].exists()]
+    
+    def update_processed_files(self, file_paths: List[Path]) -> None:
+        """Update the processed timestamp for files that have been successfully processed."""
+        current_time = datetime.now().isoformat()
+        
+        for file_path in file_paths:
+            if file_path.exists():
+                file_hash = self._get_file_hash(file_path)
+                rel_path = str(file_path.relative_to(self.folder_path))
+                self.file_metadata[rel_path] = {
+                    'path': file_path,
+                    'hash': file_hash,
+                    'mtime': file_path.stat().st_mtime,
+                    'last_processed': current_time
+                }
+        
+        self._save_metadata()
+        logging.debug(f"Updated processed timestamp for {len(file_paths)} files")
+    
+    def clear_cache(self) -> None:
+        """Clear all cached metadata."""
+        self.file_metadata = {}
+        if self.metadata_file.exists():
+            self.metadata_file.unlink()
+        logging.info("File monitoring cache cleared")
+
+
+class VectorStore:
+    """Manages vector embeddings and similarity search using ChromaDB with persistent storage."""
+    
+    def __init__(self, collection_name: str = "documents", embedding_model: str = "all-MiniLM-L6-v2", 
+                 persist_directory: str = "./vectordbs") -> None:
         self.collection_name = collection_name
         self.embedding_model_name = embedding_model
+        self.persist_directory = Path(persist_directory)
+        self.persist_directory.mkdir(parents=True, exist_ok=True)
         
         # Resolve embedding model path
         resolved_model_path = self._resolve_embedding_model_path(embedding_model)
@@ -243,22 +386,47 @@ class VectorStore:
             self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
             self.embedding_model_name = "all-MiniLM-L6-v2"
         
-        # Initialize ChromaDB with telemetry disabled
-        self.client = chromadb.Client(Settings(
-            allow_reset=True,
-            anonymized_telemetry=False
-        ))
+        # Initialize ChromaDB with persistent storage
+        self.client = chromadb.PersistentClient(
+            path=str(self.persist_directory),
+            settings=Settings(
+                allow_reset=True,
+                anonymized_telemetry=False
+            )
+        )
         
         # Get or create collection
         try:
             self.collection = self.client.get_collection(collection_name)
-            logging.info(f"Loaded existing collection: {collection_name}")
+            logging.info(f"Loaded existing collection: {collection_name} with {self.collection.count()} documents")
         except:
             self.collection = self.client.create_collection(collection_name)
             logging.info(f"Created new collection: {collection_name}")
+        
+        # Document metadata cache
+        self.doc_metadata_file = self.persist_directory / "doc_metadata.json"
+        self.doc_metadata = self._load_doc_metadata()
     
-    def add_documents(self, documents: List[str]):
-        """Add documents to the vector store."""
+    def _load_doc_metadata(self) -> Dict[str, Any]:
+        """Load document metadata from cache."""
+        if self.doc_metadata_file.exists():
+            try:
+                with open(self.doc_metadata_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                logging.warning(f"Failed to load document metadata: {e}")
+        return {'next_id': 0, 'file_to_ids': {}, 'id_to_file': {}}
+    
+    def _save_doc_metadata(self) -> None:
+        """Save document metadata to cache."""
+        try:
+            with open(self.doc_metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(self.doc_metadata, f, indent=2)
+        except Exception as e:
+            logging.error(f"Failed to save document metadata: {e}")
+    
+    def add_documents(self, documents: List[str], file_path: Optional[str] = None) -> None:
+        """Add documents to the vector store with optional file tracking."""
         if not documents:
             logging.warning("No documents to add")
             return
@@ -266,40 +434,111 @@ class VectorStore:
         logging.info(f"Generating embeddings for {len(documents)} documents...")
         embeddings = self.embedding_model.encode(documents, show_progress_bar=True)
 
-        # Prepare data for ChromaDB
-        ids = [f"doc_{i}" for i in range(len(documents))]
-
-        # Clear existing collection by checking if it has documents first
-        try:
-            existing_count = self.collection.count()
-            if existing_count > 0:
-                # Get all existing IDs and delete them
-                existing_data = self.collection.get()
-                if existing_data['ids']:
-                    self.collection.delete(ids=existing_data['ids'])
-                    logging.info(f"Cleared {existing_count} existing documents from collection")
-        except Exception as e:
-            logging.warning(f"Could not clear existing documents: {e}")
+        # Generate unique IDs for new documents
+        start_id = self.doc_metadata['next_id']
+        ids = [f"doc_{start_id + i}" for i in range(len(documents))]
+        self.doc_metadata['next_id'] = start_id + len(documents)
         
-        # Add new documents
+        # Track file associations if provided
+        if file_path:
+            self.doc_metadata['file_to_ids'][file_path] = ids
+            for doc_id in ids:
+                self.doc_metadata['id_to_file'][doc_id] = file_path
+        
+        # Add new documents to collection
         self.collection.add(
             embeddings=embeddings.tolist(),
             documents=documents,
             ids=ids
         )
+        
+        # Save metadata
+        self._save_doc_metadata()
 
         logging.info(f"Added {len(documents)} documents to vector store")
     
-    def search(self, query: str, n_results: int = 5) -> List[str]:
-        """Search for similar documents."""
+    def remove_documents_by_file(self, file_path: str) -> None:
+        """Remove all documents associated with a specific file."""
+        if file_path not in self.doc_metadata['file_to_ids']:
+            logging.warning(f"No documents found for file: {file_path}")
+            return
+        
+        doc_ids = self.doc_metadata['file_to_ids'][file_path]
+        
+        try:
+            # Remove from ChromaDB collection
+            self.collection.delete(ids=doc_ids)
+            
+            # Update metadata
+            del self.doc_metadata['file_to_ids'][file_path]
+            for doc_id in doc_ids:
+                if doc_id in self.doc_metadata['id_to_file']:
+                    del self.doc_metadata['id_to_file'][doc_id]
+            
+            self._save_doc_metadata()
+            logging.info(f"Removed {len(doc_ids)} documents for file: {file_path}")
+            
+        except Exception as e:
+            logging.error(f"Failed to remove documents for file {file_path}: {e}")
+    
+    def update_documents_for_file(self, file_path: str, documents: List[str]) -> None:
+        """Update documents for a specific file (remove old, add new)."""
+        # Remove existing documents for this file
+        self.remove_documents_by_file(file_path)
+        
+        # Add new documents
+        if documents:
+            self.add_documents(documents, file_path)
+    
+    def clear_all_documents(self) -> None:
+        """Clear all documents from the vector store."""
+        try:
+            existing_data = self.collection.get()
+            if existing_data['ids']:
+                self.collection.delete(ids=existing_data['ids'])
+                logging.info(f"Cleared {len(existing_data['ids'])} documents from collection")
+            
+            # Reset metadata
+            self.doc_metadata = {'next_id': 0, 'file_to_ids': {}, 'id_to_file': {}}
+            self._save_doc_metadata()
+            
+        except Exception as e:
+            logging.error(f"Failed to clear documents: {e}")
+    
+    def get_document_count(self) -> int:
+        """Get total number of documents in the vector store."""
+        try:
+            return self.collection.count()
+        except Exception as e:
+            logging.error(f"Failed to get document count: {e}")
+            return 0
+    
+    def search(self, query: str, n_results: int = 5, return_metadata: bool = False):
+        """Search for similar documents.
+        
+        Args:
+            query: Search query string
+            n_results: Number of results to return
+            return_metadata: If True, return (documents, metadata) tuple
+            
+        Returns:
+            List[str] if return_metadata=False, else Tuple[List[str], List[dict]]
+        """
         query_embedding = self.embedding_model.encode([query])
         
         results = self.collection.query(
             query_embeddings=query_embedding.tolist(),
-            n_results=n_results
+            n_results=n_results,
+            include=['documents', 'metadatas'] if return_metadata else ['documents']
         )
         
-        return results['documents'][0] if results['documents'] else []
+        documents = results['documents'][0] if results['documents'] else []
+        
+        if return_metadata:
+            metadata = results.get('metadatas', [[]])[0] if results.get('metadatas') else []
+            return documents, metadata
+        else:
+            return documents
     
     def _resolve_embedding_model_path(self, model_name: str) -> str:
         """Resolve embedding model path, checking local embeddings folder first."""
@@ -331,7 +570,7 @@ class VectorStore:
 class DocuChatConfig:
     """Configuration class for DocuChat application."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         # Model configuration
         self.model_path = None
         self.n_ctx = 4096
@@ -373,6 +612,10 @@ class DocuChatConfig:
         self.batch_size = 512
         self.use_mlock = False
         self.use_mmap = True
+        
+        # Logging configuration
+        self.log_level = "INFO"
+        self.log_file = None
     
     @classmethod
     def from_yaml(cls, yaml_path: str) -> 'DocuChatConfig':
@@ -426,6 +669,7 @@ class DocuChatConfig:
                 config.interactive = ui_config.get('interactive', config.interactive)
                 config.system_prompt = ui_config.get('system_prompt', config.system_prompt)
                 config.chat_template = ui_config.get('chat_template', config.chat_template)
+                config.streaming = ui_config.get('streaming', config.streaming)
             
 
             
@@ -439,6 +683,12 @@ class DocuChatConfig:
                 config.batch_size = perf_config.get('batch_size', config.batch_size)
                 config.use_mlock = perf_config.get('use_mlock', config.use_mlock)
                 config.use_mmap = perf_config.get('use_mmap', config.use_mmap)
+            
+            # Load logging configuration
+            if 'logging' in yaml_config:
+                log_config = yaml_config['logging']
+                config.log_level = log_config.get('level', config.log_level)
+                config.log_file = log_config.get('file', config.log_file)
             
             logging.info(f"Loaded configuration from {yaml_path}")
             
@@ -483,6 +733,8 @@ class DocuChatConfig:
             self.streaming = False
         elif hasattr(args, 'streaming') and args.streaming:
             self.streaming = True
+        
+
 
 
 class DocuChat:
@@ -493,13 +745,23 @@ class DocuChat:
         self.llm = None
         self.vector_store = None
         self.document_processor = None
+        self.file_monitor = None
         
         # Setup logging
-        log_level = logging.DEBUG if config.verbose else logging.INFO
-        logging.basicConfig(
-            level=log_level,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
+        log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+        if config.verbose:
+            log_level = logging.DEBUG
+        
+        log_config = {
+            'level': log_level,
+            'format': '%(asctime)s - %(levelname)s - %(message)s'
+        }
+        
+        if config.log_file:
+            log_config['filename'] = config.log_file
+            log_config['filemode'] = 'a'
+        
+        logging.basicConfig(**log_config)
     
     def initialize(self):
         """Initialize all components."""
@@ -519,14 +781,19 @@ class DocuChat:
                 embedding_model=self.config.embedding_model
             )
             
-            # Load documents if folder path is provided
+            # Initialize file monitor and load documents if folder path is provided
             if self.config.folder_path:
                 logging.info(f"Loading documents from: {self.config.folder_path}")
                 try:
-                    documents = self.document_processor.load_documents(self.config.folder_path)
-                    if documents:
-                        logging.info(f"Successfully loaded {len(documents)} document chunks")
-                        self.vector_store.add_documents(documents)
+                    # Initialize file monitor
+                    self.file_monitor = FileMonitor(self.config.folder_path)
+                    
+                    # Check for file changes and update documents
+                    self._update_documents_from_folder()
+                    
+                    doc_count = self.vector_store.get_document_count()
+                    if doc_count > 0:
+                        logging.info(f"Successfully loaded {doc_count} document chunks")
                         logging.info("Documents added to vector store successfully")
                     else:
                         logging.warning("No documents were loaded - check if documents exist in the folder")
@@ -576,6 +843,71 @@ class DocuChat:
 
         
         logging.info("DocuChat initialized successfully!")
+    
+    def _update_documents_from_folder(self):
+        """Update documents in vector store based on file changes."""
+        if not self.file_monitor:
+            return
+        
+        # Check for file changes
+        changes = self.file_monitor.scan_for_changes()
+        
+        # Process removed files
+        for file_path in changes['removed']:
+            rel_path = str(file_path.relative_to(Path(self.config.folder_path)))
+            logging.info(f"Removing documents for deleted file: {rel_path}")
+            self.vector_store.remove_documents_by_file(rel_path)
+        
+        # Process added and modified files
+        files_to_process = changes['added'] + changes['modified']
+        
+        if files_to_process:
+            logging.info(f"Processing {len(files_to_process)} new/modified files")
+            
+            for file_path in files_to_process:
+                try:
+                    # Load and process the document content
+                    content = self.document_processor._load_file(file_path)
+                    if content:
+                        chunks = self.document_processor._chunk_text(content)
+                        
+                        if chunks:
+                            # Update documents for this file using relative path
+                            rel_path = str(file_path.relative_to(Path(self.config.folder_path)))
+                            self.vector_store.update_documents_for_file(rel_path, chunks)
+                            logging.info(f"Updated {file_path.name}: {len(chunks)} chunks")
+                        else:
+                            logging.warning(f"No chunks extracted from {file_path.name}")
+                    else:
+                        logging.warning(f"No content loaded from {file_path.name}")
+                        
+                except Exception as e:
+                    logging.error(f"Failed to process {file_path.name}: {e}")
+        
+        # Update the file monitor cache for processed files
+        if files_to_process:
+            self.file_monitor.update_processed_files(files_to_process)
+        
+        # Log current status
+        total_docs = self.vector_store.get_document_count()
+        logging.info(f"Vector store now contains {total_docs} document chunks")
+    
+    def refresh_documents(self, force: bool = False):
+        """Manually refresh documents from the folder."""
+        if not self.file_monitor or not self.vector_store:
+            logging.warning("File monitoring or vector store not initialized")
+            return
+        
+        if force:
+            logging.info("Force refresh: clearing all cached metadata")
+            self.file_monitor.clear_cache()
+            self.vector_store.clear_all_documents()
+        
+        logging.info("Refreshing documents from folder...")
+        self._update_documents_from_folder()
+        
+        total_docs = self.vector_store.get_document_count()
+        logging.info(f"Refresh complete. Vector store contains {total_docs} document chunks")
     
 
     
@@ -667,19 +999,33 @@ class DocuChat:
         if not self.llm:
             raise RuntimeError("DocuChat not initialized. Call initialize() first.")
         
+
+        
         # Retrieve relevant documents (skip if no_rag is enabled)
         context_docs = []
+        source_files = []
         docs_used = False
         if not self.config.no_rag and self.vector_store and query.strip():
             try:
-                context_docs = self.vector_store.search(query, n_results=self.config.n_retrieve)
-                if context_docs:
+                search_results = self.vector_store.search(query, n_results=self.config.n_retrieve, return_metadata=True)
+                if search_results:
+                    if isinstance(search_results, tuple) and len(search_results) == 2:
+                        context_docs, metadata_list = search_results
+                        # Extract source files from metadata
+                        source_files = [meta.get('source', 'Unknown') for meta in metadata_list if meta]
+                    else:
+                        context_docs = search_results
+                        source_files = []
+                    
                     docs_used = True
                     # Clear the searching indicator and show found documents
                     print(f"\r{Fore.GREEN}📄 Found {len(context_docs)} relevant document sections{Style.RESET_ALL}")
                     if self.config.verbose:
                         logging.info(f"Retrieved {len(context_docs)} relevant documents")
                         logging.info("Using document context for response")
+                        if source_files:
+                            unique_sources = list(set(source_files))
+                            logging.info(f"Sources: {', '.join(unique_sources)}")
                 else:
                     print(f"\r{Fore.YELLOW}📄 No relevant documents found, using general knowledge{Style.RESET_ALL}")
             except Exception as e:
@@ -687,19 +1033,30 @@ class DocuChat:
                 logging.error(f"Error during document search: {e}")
                 logging.info("Falling back to LLM-only mode for this query")
                 context_docs = []
+                source_files = []
         elif self.config.no_rag and self.config.verbose:
             logging.info("RAG disabled - using LLM only mode")
         
+        # Use the original query
+        final_query = query
+        
         # Generate response based on streaming configuration
         if self.config.streaming:
-            response = self.generate_response_streaming(query, context_docs)
+            response = self.generate_response_streaming(final_query, context_docs)
         else:
-            response = self.generate_response(query, context_docs)
+            response = self.generate_response(final_query, context_docs)
             print(response, end="", flush=True)
         
-        # Add a subtle indicator if documents were used
+        # Add indicators for data sources used
         if docs_used and not self.config.verbose:
-            print(f"\n\n{Fore.CYAN}💡 Response based on your documents{Style.RESET_ALL}")
+            if source_files:
+                unique_sources = list(set(source_files))
+                if len(unique_sources) == 1:
+                    print(f"\n\n💡 {Fore.CYAN}📄 Based on: {unique_sources[0]}{Style.RESET_ALL}")
+                else:
+                    print(f"\n\n💡 {Fore.CYAN}📄 Based on {len(unique_sources)} documents: {', '.join(unique_sources[:3])}{'...' if len(unique_sources) > 3 else ''}{Style.RESET_ALL}")
+            else:
+                print(f"\n\n💡 {Fore.CYAN}📄 Based on your documents{Style.RESET_ALL}")
         
         return response
     
@@ -766,13 +1123,23 @@ class DocuChat:
             print("  - Ask questions about your documents")
             print("  - Be specific for better results")
             print("  - The AI will use document context to answer")
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
             
     def _show_status(self):
         """Show current system status."""
         print(f"\n📊 {Fore.CYAN}System Status:{Style.RESET_ALL}")
         print(f"  Model: {self.config.model_path}")
-        
-
         
         if self.config.no_rag:
             print(f"  Mode: {Fore.YELLOW}LLM-only (no document retrieval){Style.RESET_ALL}")
@@ -795,6 +1162,8 @@ class DocuChat:
             
             print(f"  Embedding model: {self.config.embedding_model}")
             print(f"  Retrieval count: {self.config.n_retrieve}")
+        
+
         
         print(f"  Streaming: {Fore.GREEN if self.config.streaming else Fore.RED}{'Enabled' if self.config.streaming else 'Disabled'}{Style.RESET_ALL}")
 
@@ -916,8 +1285,16 @@ def parse_arguments():
         action="store_true",
         help="Disable RAG (Retrieval-Augmented Generation) and use LLM only"
     )
-    
-
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Refresh document embeddings by checking for new/modified/removed files"
+    )
+    parser.add_argument(
+        "--force-refresh",
+        action="store_true",
+        help="Force complete refresh by clearing all cached data and re-processing all documents"
+    )
     
     # Chat arguments
     parser.add_argument(
@@ -932,6 +1309,8 @@ def parse_arguments():
         choices=["auto", "chatml", "llama2", "alpaca"],
         help="Chat template format (default: auto)"
     )
+    
+
     
     # Other arguments
     parser.add_argument(
@@ -1026,6 +1405,16 @@ def main():
         # Create and initialize DocuChat
         docuchat = DocuChat(config)
         docuchat.initialize()
+        
+        # Handle refresh operations
+        if hasattr(args, 'force_refresh') and args.force_refresh:
+            print("🔄 Force refreshing all documents...")
+            docuchat.refresh_documents(force=True)
+            print("✅ Force refresh completed!")
+        elif hasattr(args, 'refresh') and args.refresh:
+            print("🔄 Refreshing documents...")
+            docuchat.refresh_documents(force=False)
+            print("✅ Refresh completed!")
         
         # Handle single query or interactive mode
         if args.query:
