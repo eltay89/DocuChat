@@ -1429,6 +1429,11 @@ def main():
         print("\n\n👋 Goodbye!")
     except Exception as e:
         print(f"\n❌ Error: {e}")
+    finally:
+        if 'docuchat' in locals() and docuchat.llm:
+            print("Closing Llama model...")
+            docuchat.llm.close()
+            print("Llama model closed.")
         if '--verbose' in sys.argv:
             import traceback
             traceback.print_exc()
