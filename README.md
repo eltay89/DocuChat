@@ -6,7 +6,7 @@ DocuChat v2.0 is a sophisticated document analysis and chat system that combines
 
 ## 🙏 Acknowledgments
 
-Special thanks to **Pietro Schirano** and **Doriandarko** for their foundational work on AI tools and agent systems. Their innovative approaches to tool integration and LLM orchestration have significantly influenced the design of DocuChat's tool system.
+Special thanks to **Pietro Schirano** for his foundational work on AI tools and agent systems. His innovative approaches to tool integration and LLM orchestration have significantly influenced the design of DocuChat's tool system.
 
 ### Pietro Schirano 🎯
 **Passionate AI engineer on a mission to democratize AI tools**
