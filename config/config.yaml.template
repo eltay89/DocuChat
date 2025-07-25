@@ -1,0 +1,143 @@
+# DocuChat v2.0 Configuration Template
+# Copy this file to config.yaml and customize for your needs
+
+# Model Configuration
+model:
+  provider: "openrouter"  # Options: openrouter, openai, anthropic, ollama
+  model_name: "anthropic/claude-3-haiku"  # Model to use for chat
+  api_key: "${OPENROUTER_API_KEY}"  # API key (use environment variable)
+  base_url: null  # Custom base URL (for local models)
+  temperature: 0.7  # Response creativity (0.0-1.0)
+  max_tokens: 4000  # Maximum response length
+  timeout: 30  # Request timeout in seconds
+
+# Document Processing
+documents:
+  input_directory: "./documents"  # Directory to monitor for documents
+  output_directory: "./processed"  # Directory for processed documents
+  supported_formats:
+    - "pdf"
+    - "docx"
+    - "txt"
+    - "md"
+    - "html"
+    - "pptx"
+    - "csv"
+    - "json"
+    - "png"
+    - "jpg"
+    - "jpeg"
+  max_file_size: 50  # Maximum file size in MB
+  auto_process: true  # Automatically process new files
+
+# Embedding Configuration
+embeddings:
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"  # Embedding model
+  dimension: 384  # Embedding dimension
+  device: "auto"  # Device: auto, cpu, cuda
+  batch_size: 32  # Batch size for processing
+  normalize: true  # Normalize embeddings
+
+# RAG Configuration
+rag:
+  enabled: true  # Enable RAG functionality
+  chunk_size: 1000  # Text chunk size
+  chunk_overlap: 200  # Overlap between chunks
+  max_chunks: 10  # Maximum chunks to retrieve
+  similarity_threshold: 0.7  # Minimum similarity score
+  context_window: 8000  # Maximum context length
+
+# Vector Store Configuration
+vector_store:
+  type: "chromadb"  # Vector store type
+  path: "./vector_store"  # Storage path
+  collection_name: "docuchat"  # Collection name
+  distance_metric: "cosine"  # Distance metric
+  index_type: "hnsw"  # Index type for performance
+  
+# Chat Configuration
+chat:
+  max_history: 50  # Maximum conversation history
+  stream_responses: true  # Enable streaming responses
+  show_sources: true  # Show source documents
+  enable_tools: true  # Enable tool usage
+  context_aware: true  # Maintain conversation context
+
+# Enhanced Features (requires additional dependencies)
+enhanced:
+  enabled: false  # Enable enhanced features
+  
+  # OCR Configuration
+  ocr:
+    enabled: false  # Enable OCR for images
+    languages: ["en"]  # OCR languages
+    confidence_threshold: 0.8  # Minimum confidence
+    
+  # Hybrid Search
+  hybrid_search:
+    enabled: false  # Enable hybrid search
+    dense_weight: 0.7  # Weight for dense retrieval
+    sparse_weight: 0.3  # Weight for sparse retrieval
+    
+  # Reranking
+  reranking:
+    enabled: false  # Enable cross-encoder reranking
+    model: "cross-encoder/ms-marco-MiniLM-L-6-v2"  # Reranking model
+    top_k: 20  # Number of candidates to rerank
+
+# User Interface
+ui:
+  theme: "dark"  # UI theme: light, dark, auto
+  language: "en"  # Interface language
+  show_debug: false  # Show debug information
+  auto_scroll: true  # Auto-scroll chat
+  
+# Web Interface (optional)
+web:
+  enabled: false  # Enable web interface
+  host: "0.0.0.0"  # Host address
+  port: 8000  # Port number
+  reload: false  # Auto-reload on changes
+  
+# Streamlit Interface (optional)
+streamlit:
+  enabled: false  # Enable Streamlit interface
+  host: "0.0.0.0"  # Host address
+  port: 8501  # Port number
+  
+# Logging Configuration
+logging:
+  level: "INFO"  # Log level: DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/docuchat.log"  # Log file path
+  max_size: 10  # Maximum log file size in MB
+  backup_count: 5  # Number of backup files
+  console: true  # Log to console
+  
+# File Monitoring
+monitoring:
+  enabled: true  # Enable file monitoring
+  watch_directories: ["./documents"]  # Directories to watch
+  ignore_patterns: ["*.tmp", "*.log", ".*"]  # Patterns to ignore
+  debounce_seconds: 2  # Debounce time for file changes
+  
+# Performance Settings
+performance:
+  max_workers: 4  # Maximum worker threads
+  memory_limit: "2GB"  # Memory limit
+  cache_size: 1000  # Cache size for embeddings
+  gc_threshold: 100  # Garbage collection threshold
+  
+# Security Settings
+security:
+  validate_inputs: true  # Validate all inputs
+  sanitize_outputs: true  # Sanitize outputs
+  max_request_size: 100  # Maximum request size in MB
+  rate_limit: 60  # Requests per minute
+  
+# Development Settings
+development:
+  debug: false  # Enable debug mode
+  profile: false  # Enable profiling
+  mock_api: false  # Use mock API responses
+  test_mode: false  # Enable test mode

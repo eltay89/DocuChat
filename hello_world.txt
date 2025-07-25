@@ -1,0 +1,16 @@
+Hello, World!
+
+This is a simple test document for DocuChat v2.0.
+
+DocuChat is an AI-powered document chat application that allows you to:
+- Upload and process various document formats
+- Ask questions about your documents
+- Get intelligent responses based on document content
+- Use advanced features like OCR and hybrid search
+
+Try asking questions like:
+- "What is this document about?"
+- "Summarize the main points"
+- "What features does DocuChat offer?"
+
+Enjoy exploring DocuChat!

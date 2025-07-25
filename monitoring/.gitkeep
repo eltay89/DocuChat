@@ -1,0 +1,6 @@
+# This directory contains monitoring and observability configurations
+# Files in this directory:
+# - Prometheus configurations
+# - Grafana dashboards
+# - Health check scripts
+# - Performance monitoring tools
