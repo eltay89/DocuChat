@@ -1,0 +1,147 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README*
+CHANGELOG*
+LICENSE*
+docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+PYMANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.env
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+.nyc_output
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Models and data (exclude from build context)
+models/
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.h5
+*.pkl
+*.pickle
+
+# Large data files
+*.csv
+*.json
+*.parquet
+*.arrow
+*.feather
+
+# Vector databases
+vector_store/
+*.faiss
+chroma_db/
+
+# Configuration files (may contain sensitive data)
+config.yaml
+.env
+.env.local
+.env.*.local
+
+# Cache directories
+.cache/
+__pycache__/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# User-specific files
+.user
+.personal
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Temporary files
+temp/
+tmp/
+*.temp

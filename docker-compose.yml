@@ -1,0 +1,158 @@
+# DocuChat v2.0 - Docker Compose Configuration
+# Provides multiple service options for different use cases
+
+version: '3.8'
+
+services:
+  # Main CLI service
+  docuchat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: docuchat:v2.0
+    container_name: docuchat-cli
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ANONYMIZED_TELEMETRY=False
+      - LLAMA_CPP_LOG_LEVEL=2
+    volumes:
+      - ./documents:/app/documents:rw
+      - ./models:/app/models:rw
+      - ./vector_store:/app/vector_store:rw
+      - ./config:/app/config:rw
+      - ./logs:/app/logs:rw
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.path.insert(0, '/app/src'); from docuchat.core.config import ConfigManager; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # FastAPI web interface
+  docuchat-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: docuchat:v2.0
+    container_name: docuchat-web
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ANONYMIZED_TELEMETRY=False
+      - LLAMA_CPP_LOG_LEVEL=2
+    volumes:
+      - ./documents:/app/documents:rw
+      - ./models:/app/models:rw
+      - ./vector_store:/app/vector_store:rw
+      - ./config:/app/config:rw
+      - ./logs:/app/logs:rw
+    ports:
+      - "8000:8000"
+    command: ["python", "-m", "docuchat.cli.main", "--web", "--host", "0.0.0.0", "--port", "8000"]
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - docuchat
+
+  # Streamlit interface
+  docuchat-streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: docuchat:v2.0
+    container_name: docuchat-streamlit
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ANONYMIZED_TELEMETRY=False
+      - LLAMA_CPP_LOG_LEVEL=2
+    volumes:
+      - ./documents:/app/documents:rw
+      - ./models:/app/models:rw
+      - ./vector_store:/app/vector_store:rw
+      - ./config:/app/config:rw
+      - ./logs:/app/logs:rw
+    ports:
+      - "8501:8501"
+    command: ["python", "-m", "docuchat.cli.main", "--streamlit", "--host", "0.0.0.0", "--port", "8501"]
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - docuchat
+
+  # Optional: Redis for caching (uncomment if needed)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: docuchat-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 512M
+  #       reservations:
+  #         memory: 128M
+
+  # Optional: PostgreSQL for metadata storage (uncomment if needed)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: docuchat-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     - POSTGRES_DB=docuchat
+  #     - POSTGRES_USER=docuchat
+  #     - POSTGRES_PASSWORD=docuchat_password
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1G
+  #       reservations:
+  #         memory: 256M
+
+# Optional volumes (uncomment if using Redis/PostgreSQL)
+# volumes:
+#   redis_data:
+#   postgres_data:
+
+networks:
+  default:
+    name: docuchat-network

@@ -1,47 +1,188 @@
-# DocuChat 🤖📚
+# DocuChat v2.0 🤖📚
 
-**DocuChat** is a sophisticated, privacy-first RAG (Retrieval-Augmented Generation) application that enables intelligent conversations with your documents using local language models. Built with Python and powered by cutting-edge AI technologies, DocuChat transforms your document collections into an interactive knowledge base that you can query naturally.
+> **Privacy-focused, local AI document chat assistant with advanced RAG capabilities**
+
+DocuChat v2.0 is a sophisticated, privacy-first RAG (Retrieval-Augmented Generation) application that enables intelligent conversations with your documents using local language models. Built with Python and powered by cutting-edge AI technologies, DocuChat transforms your document collections into an interactive knowledge base.
 
 ## 🎯 What is DocuChat?
 
 DocuChat is a local AI-powered document chat system that:
-- **Processes your documents** (PDF, DOCX, TXT, Markdown) into searchable knowledge
+
+- **Processes documents** (PDF, DOCX, TXT, Markdown, HTML, PPTX, CSV, JSON, Images) into searchable knowledge
 - **Uses vector embeddings** to understand document content semantically
-- **Leverages local LLMs** (Large Language Models) for intelligent responses
+- **Leverages local LLMs** for intelligent responses with no external API calls
 - **Maintains complete privacy** - all processing happens on your machine
 - **Provides real-time streaming** responses for immediate feedback
 - **Remembers context** across conversations within a session
+- **Supports advanced features** like OCR, hybrid search, and reranking
 
-### How It Works (Simple Explanation)
-1. **📄 Document Ingestion**: You point DocuChat to a folder containing your documents
-2. **🔍 Content Analysis**: Documents are broken into chunks and converted to mathematical vectors (embeddings)
-3. **💾 Knowledge Storage**: These vectors are stored in a local database for fast retrieval
-4. **❓ Query Processing**: When you ask a question, DocuChat finds the most relevant document chunks
-5. **🤖 AI Response**: A local language model uses the relevant content to generate accurate, contextual answers
-6. **⚡ Real-time Output**: Responses stream to you character-by-character as they're generated
+## 🏗️ Advanced Tool System Architecture
+
+### How Tools Work
+
+#### 1. Tool Discovery and Loading
+```python
+# Automatic tool discovery from tools/ directory
+def discover_tools(config: dict = None, silent: bool = False) -> Dict[str, BaseTool]:
+    tools = {}
+    tools_dir = os.path.dirname(__file__)
+    
+    # Scan for Python files and load tool classes
+    for filename in os.listdir(tools_dir):
+        if filename.endswith('.py') and filename not in ['__init__.py', 'base_tool.py']:
+            # Import module and find BaseTool subclasses
+            module = importlib.import_module(f'.{module_name}', package='tools')
+            # Instantiate tools automatically
+```
+
+#### 2. Tool Base Architecture
+All tools inherit from the `BaseTool` abstract base class:
+
+```python
+class BaseTool(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Tool identifier for LLM function calling"""
+        pass
+    
+    @property
+    @abstractmethod
+    def description(self) -> str:
+        """Human-readable description for LLM"""
+        pass
+    
+    @property
+    @abstractmethod
+    def parameters(self) -> Dict[str, Any]:
+        """OpenRouter-compatible JSON schema"""
+        pass
+    
+    @abstractmethod
+    def execute(self, **kwargs) -> Any:
+        """Execute tool with validated parameters"""
+        pass
+```
+
+#### 3. LLM Integration Process
+1. **Schema Generation**: Tools automatically generate OpenRouter-compatible function schemas
+2. **LLM Decision Making**: The language model decides which tools to use based on user queries
+3. **Parameter Validation**: Tool parameters are validated against JSON schemas
+4. **Execution**: Tools execute with proper error handling and logging
+5. **Result Integration**: Tool outputs are integrated into the conversation context
+
+### Built-in Tools
+
+#### 🔍 Search Tool
+- **Purpose**: Web search using DuckDuckGo
+- **Capabilities**: General information retrieval, date queries, current events
+- **Security**: Rate limiting, content filtering, safe browsing
+- **Return Format**: Structured results with titles, snippets, and URLs
+
+#### 🧮 Calculator Tool
+- **Purpose**: Mathematical calculations and expressions
+- **Capabilities**: Basic arithmetic, scientific functions, safe evaluation
+- **Security**: Sandboxed execution, operator whitelisting
+- **Return Format**: Numerical results with step-by-step breakdown
+
+#### 📖 Read File Tool
+- **Purpose**: Read and analyze local files
+- **Capabilities**: Text files, code files, configuration files
+- **Security**: Path validation, access control, size limits
+- **Return Format**: File content with metadata and encoding info
+
+#### ✍️ Write File Tool
+- **Purpose**: Create and modify files safely
+- **Capabilities**: Text creation, code generation, data export
+- **Security**: Directory restrictions, backup creation, validation
+- **Return Format**: Success confirmation with file details
+
+#### ✅ Task Completion Tool
+- **Purpose**: Mark tasks as complete and provide summaries
+- **Capabilities**: Status tracking, progress reporting, completion validation
+- **Security**: State validation, audit logging
+- **Return Format**: Completion status with summary and next steps
+
+### Tool System Benefits
+
+1. **Extensibility**: Easy to add new tools by inheriting from `BaseTool`
+2. **Type Safety**: JSON Schema validation for parameters
+3. **Error Handling**: Graceful degradation and error reporting
+4. **Security**: Built-in path validation and operation restrictions
+5. **Performance**: Efficient tool discovery and caching
+6. **Debugging**: Comprehensive logging and status reporting
+
+### Creating Custom Tools
+
+```python
+from tools.base_tool import BaseTool
+
+class CustomTool(BaseTool):
+    def __init__(self, config: dict):
+        self.config = config
+    
+    @property
+    def name(self) -> str:
+        return "custom_action"
+    
+    @property
+    def description(self) -> str:
+        return "Performs a custom action with given parameters"
+    
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                "input": {"type": "string", "description": "Input parameter"},
+                "mode": {"type": "string", "enum": ["fast", "accurate"]}
+            },
+            "required": ["input"]
+        }
+    
+    def execute(self, **kwargs) -> dict:
+        # Tool implementation
+        return {"result": "success", "data": processed_data}
+```
 
 ## ✨ Key Features
 
 ### 🚀 Advanced AI Capabilities
-- **⚡ Real-time Streaming**: Watch responses generate character-by-character for immediate feedback, just like ChatGPT
-- **🎯 Auto-Detecting Chat Templates**: Automatically detects and applies the correct conversation format for your specific model (ChatML, Llama2, Alpaca, etc.)
-- **🤖 Local LLM Support**: Run powerful language models entirely on your machine using efficient GGUF format - no internet required, no API costs
-- **📚 Multiple Document Formats**: Seamlessly process PDF documents, Word files (.docx), plain text (.txt), and Markdown (.md) files
-- **🔍 Semantic Vector Search**: Advanced similarity search using ChromaDB and sentence transformers - finds relevant content even when exact keywords don't match
-- **💬 Interactive Chat Interface**: Natural conversation flow with context awareness and command support
-- **⚙️ Flexible Configuration**: Configure everything via YAML files or command-line arguments with intelligent defaults
-- **🎨 Smart Model Integration**: Supports various model architectures with automatic optimization and template detection
-- **🛡️ Robust Error Handling**: Comprehensive error recovery, timeout protection, and graceful degradation
-- **📊 Source Attribution**: See exactly which documents contributed to each response for transparency and verification
+- **Real-time Streaming**: Character-by-character response generation
+- **Auto-Detecting Chat Templates**: Automatic model format detection (ChatML, Llama2, Alpaca)
+- **Local LLM Support**: GGUF format models with no internet required
+- **Multi-format Documents**: PDF, DOCX, TXT, MD, HTML, PPTX, CSV, JSON, Images
+- **Semantic Vector Search**: ChromaDB with sentence transformers
+- **Interactive Chat Interface**: Natural conversation with context awareness
+- **Flexible Configuration**: YAML files and command-line arguments
+- **Smart Model Integration**: Automatic optimization and template detection
+- **Robust Error Handling**: Comprehensive error recovery and timeout protection
+- **Source Attribution**: Document source tracking for transparency
 
 ### 🔧 Technical Excellence
-- **📊 Persistent Vector Database**: ChromaDB storage ensures fast startup times and efficient similarity search across sessions
-- **🔄 Modern Architecture**: Built on llama-cpp-python's chat completion API for optimal performance and compatibility
-- **⚡ Performance Optimized**: Intelligent text chunking, embedding caching, and memory management for smooth operation
-- **🛡️ Privacy-First Design**: Zero external API calls - your documents and conversations never leave your machine
-- **💾 Smart Caching System**: Vector embeddings and metadata persist between sessions, eliminating redundant processing
-- **🔒 Security Focused**: Uses SHA-256 hashing, JSON serialization (not pickle), and secure file handling practices
-- **📝 Type-Safe Code**: Comprehensive type hints throughout the codebase for better maintainability and IDE support
+- **Persistent Vector Database**: ChromaDB for fast startup and efficient search
+- **Modern Architecture**: Built on llama-cpp-python's chat completion API
+- **Performance Optimized**: Intelligent chunking, caching, and memory management
+- **Privacy-First Design**: Zero external API calls
+- **Smart Caching System**: Persistent embeddings and metadata
+- **Security Focused**: SHA-256 hashing, JSON serialization, secure file handling
+- **Type-Safe Code**: Comprehensive type hints throughout
+
+### 🌟 Enhanced Features (v2.0)
+- **OCR Support**: Extract text from images and scanned documents
+- **Advanced Document Parsing**: Enhanced extraction with unstructured.io
+- **Modern Embedding Models**: BGE-M3, E5-large-v2, Nomic Embed support
+- **Hybrid Search**: BM25 sparse + dense vector retrieval
+- **Cross-encoder Reranking**: Improved result relevance
+- **Query Expansion**: Better query understanding and matching
+- **Performance Monitoring**: Comprehensive metrics and logging
+
+### 🛠️ Built-in Tools
+- **🔍 Web Search**: DuckDuckGo integration for current information
+- **🧮 Calculator**: Safe mathematical expression evaluation
+- **📖 File Reader**: Secure local file access and analysis
+- **✍️ File Writer**: Controlled file creation and modification
+- **✅ Task Manager**: Progress tracking and completion validation
 
 ## 🚀 Quick Start
 
@@ -49,66 +190,90 @@ DocuChat is a local AI-powered document chat system that:
 - **Python 3.8+**: Modern Python installation (3.9+ recommended)
 - **Memory**: At least 8GB RAM (16GB+ recommended for larger models)
 - **Storage**: 5-50GB free space (depending on model size)
-- **GPU** (Optional): CUDA-compatible GPU for faster inference
+- **GPU (Optional)**: CUDA-compatible GPU for faster inference
 - **Operating System**: Windows, macOS, or Linux
 
 ### 📦 Installation
 
-#### Step 1: Clone the Repository
+#### Automated Installation
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/DocuChat.git
+git clone https://github.com/eltay89/DocuChat.git
 cd DocuChat
 
-# Create a virtual environment (recommended)
-python -m venv docuchat-env
-
-# Activate virtual environment
-# On Windows:
-docuchat-env\Scripts\activate
-# On macOS/Linux:
-source docuchat-env/bin/activate
+# Run the setup script
+./scripts/setup.sh  # Linux/macOS
+# or
+scripts\setup.bat   # Windows
 ```
 
-#### Step 2: Install Dependencies
+#### Manual Installation
 ```bash
-# Install all required packages
+# Clone and setup environment
+git clone https://github.com/eltay89/DocuChat.git
+cd DocuChat
+
+# Create virtual environment
+python -m venv docuchat-env
+
+# Activate environment
+# Windows:
+docuchat-env\Scripts\activate
+# macOS/Linux:
+source docuchat-env/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-# For GPU support (optional, if you have CUDA)
+# For enhanced features (optional)
+pip install -e ".[enhanced]"
+
+# For GPU support (optional)
 pip install llama-cpp-python[cuda]
 ```
 
-### 🤖 Download a Language Model
+### 🤖 Download Models
 
-DocuChat uses GGUF format models. Here are some recommended options:
-
-#### Quick Start Models (Smaller, Faster)
+#### Quick Start Models
 ```bash
-# Llama 3.1 8B (Recommended for most users)
-wget https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
+# Llama 3.1 8B (Recommended)
+wget -P models/ https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf
 
-# Phi-3 Mini (Lightweight, good for testing)
-wget https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf
+# Phi-3 Mini (Lightweight)
+wget -P models/ https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf
 ```
 
-#### High-Quality Models (Larger, Better Results)
+#### High-Quality Models
 ```bash
 # Llama 3.1 70B (Best quality, requires 32GB+ RAM)
-wget https://huggingface.co/bartowski/Meta-Llama-3.1-70B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-70B-Instruct-Q4_K_M.gguf
-
-# Mixtral 8x7B (Good balance of quality and speed)
-wget https://huggingface.co/TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF/resolve/main/mixtral-8x7b-instruct-v0.1.Q4_K_M.gguf
+wget -P models/ https://huggingface.co/bartowski/Meta-Llama-3.1-70B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-70B-Instruct-Q4_K_M.gguf
 ```
 
-**Place downloaded models in the `models/` directory.**
+### ⚙️ Configuration
 
-### 📄 Prepare Your Documents
+1. **Copy configuration template**:
+   ```bash
+   cp config/config_original.yaml.template config/config.yaml
+   ```
 
-1. Create a `documents/` folder (or use existing one)
-2. Add your files: PDF, DOCX, TXT, or Markdown
-3. Organize in subfolders if desired (DocuChat will scan recursively)
+2. **Edit configuration** to match your setup:
+   ```yaml
+   model:
+     path: "./models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+     context_length: 4096
+   
+   documents:
+     path: "./documents"
+     auto_reload: true
+   
+   enhanced:
+     enabled: true
+     ocr_enabled: true
+   ```
 
+### 📄 Add Documents
+
+Place your documents in the `documents/` folder:
 ```
 documents/
 ├── research_papers/
@@ -117,1205 +282,932 @@ documents/
 ├── manuals/
 │   ├── user_guide.docx
 │   └── technical_specs.md
-└── notes.txt
+└── data/
+    ├── dataset.csv
+    └── config.json
 ```
 
-### 🎯 Basic Usage
+### 💬 Start Chatting
 
-#### Interactive Chat Mode (Recommended)
 ```bash
-# Start chatting with your documents
-python docuchat.py --model_path ./models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf --folder_path ./documents
+# Basic usage
+python -m docuchat.cli.main
 
-# With verbose output to see what's happening
-python docuchat.py --model_path ./models/your-model.gguf --folder_path ./documents --verbose
+# With enhanced features
+python -m docuchat.cli.main --enhanced
 
-# Using a configuration file
-python docuchat.py --config config/config.yaml
+# Custom configuration
+python -m docuchat.cli.main --config custom_config.yaml
 ```
 
-#### Single Query Mode
+## 🐳 Docker Installation
+
+### Prerequisites
+- **Docker**: Version 20.10 or higher
+- **Docker Compose**: Version 2.0 or higher
+- **System Resources**: 8GB+ RAM, 20GB+ storage
+
+### Quick Setup
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/eltay89/DocuChat.git
+   cd DocuChat
+   ```
+
+2. **Start with Docker Compose**:
+   ```bash
+   # Start all services
+   docker-compose up -d
+   
+   # Or start specific service
+   docker-compose up docuchat-cli
+   ```
+
+3. **Access the application**:
+   - **CLI Interface**: `docker-compose exec docuchat bash`
+   - **Web API**: http://localhost:8000
+   - **Streamlit UI**: http://localhost:8501
+
+### Service Configuration
+
+The `docker-compose.yml` includes three main services:
+
+#### 🖥️ CLI Service (`docuchat`)
+- **Purpose**: Interactive terminal interface
+- **Usage**: Direct document processing and chat
+- **Access**: `docker-compose exec docuchat python -m docuchat.cli.main`
+
+#### 🌐 Web API Service (`docuchat-web`)
+- **Purpose**: FastAPI REST API
+- **Port**: 8000
+- **Endpoints**: `/chat`, `/documents`, `/health`
+- **Usage**: Programmatic access and integrations
+
+#### 🎨 Streamlit Service (`docuchat-streamlit`)
+- **Purpose**: User-friendly web interface
+- **Port**: 8501
+- **Features**: File upload, chat interface, document management
+- **Usage**: Non-technical users and demonstrations
+
+### Volume Mounting
+
+Persistent data is stored in mounted volumes:
+
+```yaml
+volumes:
+  - ./documents:/app/documents:rw      # Your documents
+  - ./models:/app/models:rw            # LLM models
+  - ./vector_store:/app/vector_store:rw # Vector database
+  - ./config:/app/config:rw            # Configuration files
+  - ./logs:/app/logs:rw                # Application logs
+```
+
+### Dockerfile Overview
+
+The `Dockerfile` uses a multi-stage build:
+
+1. **Builder Stage**: Compiles dependencies and creates virtual environment
+2. **Production Stage**: Minimal runtime with security best practices
+   - Non-root user execution
+   - Health checks
+   - Optimized layer caching
+   - Security-focused base image
+
+### Docker Usage Examples
+
+#### Interactive CLI
 ```bash
-# Ask a specific question without entering interactive mode
-python docuchat.py --model_path ./models/your-model.gguf --folder_path ./documents --query "What are the main findings in the research papers?"
+# Start interactive session
+docker-compose run --rm docuchat
 
-# LLM-only mode (no document retrieval)
-python docuchat.py --model_path ./models/your-model.gguf --no-rag --query "Explain quantum computing"
+# Run with custom config
+docker-compose run --rm docuchat python -m docuchat.cli.main --config /app/config/custom.yaml
+
+# Enhanced mode
+docker-compose run --rm docuchat python -m docuchat.cli.main --enhanced
 ```
 
-#### First Run Example
+#### Web Interface
 ```bash
-# Your first command might look like this:
-python docuchat.py \
-  --model_path ./models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
-  --folder_path ./documents \
-  --verbose \
-  --streaming
+# Start web services
+docker-compose up docuchat-web docuchat-streamlit
 
-# This will:
-# 1. Load your model
-# 2. Process all documents in ./documents/
-# 3. Create vector embeddings
-# 4. Start interactive chat with streaming responses
-# 5. Show detailed progress information
+# Custom ports
+docker-compose run -p 9000:8000 docuchat-web
 ```
+
+#### Development Mode
+```bash
+# Mount source code for development
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+### Environment Variables
+
+Customize behavior with environment variables:
+
+```bash
+# Performance tuning
+LLAMA_CPP_LOG_LEVEL=2
+ANONYMIZED_TELEMETRY=False
+PYTHONUNBUFFERED=1
+
+# Resource limits
+OMP_NUM_THREADS=4
+MKL_NUM_THREADS=4
+
+# Custom paths
+DOCUCHAT_CONFIG_PATH=/app/config/custom.yaml
+DOCUCHAT_MODEL_PATH=/app/models/custom-model.gguf
+```
+
+### Building Custom Images
+
+```bash
+# Build with custom tag
+docker build -t docuchat:custom .
+
+# Build with build args
+docker build --build-arg PYTHON_VERSION=3.11 -t docuchat:py311 .
+
+# Multi-platform build
+docker buildx build --platform linux/amd64,linux/arm64 -t docuchat:multiarch .
+```
+
+### Troubleshooting
+
+#### Permission Issues
+```bash
+# Fix volume permissions
+sudo chown -R 1000:1000 ./documents ./models ./vector_store ./config ./logs
+
+# Or use user mapping
+docker-compose run --user $(id -u):$(id -g) docuchat
+```
+
+#### Resource Limits
+```bash
+# Check container resources
+docker stats docuchat-cli
+
+# Increase memory limit in docker-compose.yml
+deploy:
+  resources:
+    limits:
+      memory: 16G
+```
+
+#### Volume Mount Issues
+```bash
+# Verify mounts
+docker-compose exec docuchat ls -la /app/
+
+# Check SELinux (if applicable)
+sudo setsebool -P container_manage_cgroup on
+```
+
+### Production Deployment
+
+For production environments:
+
+1. **Use specific image tags**: Avoid `latest` tag
+2. **Set resource limits**: Configure memory and CPU limits
+3. **Enable logging**: Configure log drivers and rotation
+4. **Security scanning**: Scan images for vulnerabilities
+5. **Health monitoring**: Set up monitoring and alerting
+6. **Backup strategy**: Regular backup of volumes
+7. **Update strategy**: Plan for rolling updates
+
+```yaml
+# Production docker-compose.override.yml
+version: '3.8'
+services:
+  docuchat:
+    image: docuchat:v2.0.1  # Specific version
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4'
+        reservations:
+          memory: 2G
+          cpus: '1'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+```
+
+## 📖 Basic Usage
+
+### Command Examples
+```bash
+# Ask about your documents
+"What are the main findings in the research papers?"
+
+# Get specific information
+"How do I configure the database settings?"
+
+# Request summaries
+"Summarize the user manual for new employees"
+
+# Ask for analysis
+"What trends do you see in the sales data?"
+```
+
+### Command Line Options
+```bash
+# Custom configuration
+python -m docuchat.cli.main --config path/to/config.yaml
+
+# Specify model path
+python -m docuchat.cli.main --model-path path/to/model.gguf
+
+# Disable RAG (chat only)
+python -m docuchat.cli.main --disable-rag
+
+# Enable enhanced features
+python -m docuchat.cli.main --enhanced
+
+# Verbose logging
+python -m docuchat.cli.main --verbose
+
+# Single query mode
+python -m docuchat.cli.main --query "What is this document about?"
+```
+
+## 🛠️ Tool Usage Examples
+
+### Real-World Scenarios
+
+#### Research and Analysis
+```
+User: "I need to research the latest developments in quantum computing and create a summary document."
+
+Agent Response:
+1. 🔍 Uses Search Tool to find recent quantum computing news
+2. 📖 Uses Read File Tool to analyze existing research papers
+3. ✍️ Uses Write File Tool to create comprehensive summary
+4. ✅ Uses Task Completion Tool to mark research complete
+```
+
+#### Document Processing
+```
+User: "Calculate the total revenue from the sales data and update the financial report."
+
+Agent Response:
+1. 📖 Uses Read File Tool to access sales data CSV
+2. 🧮 Uses Calculator Tool to compute totals and percentages
+3. ✍️ Uses Write File Tool to update financial report
+4. ✅ Uses Task Completion Tool to confirm completion
+```
+
+#### Current Information Retrieval
+```
+User: "What's the current weather in New York and should I postpone my outdoor meeting?"
+
+Agent Response:
+1. 🔍 Uses Search Tool to get current weather data
+2. 🧮 Uses Calculator Tool to analyze temperature trends
+3. ✅ Uses Task Completion Tool to provide recommendation
+```
+
+### Tool Chaining Patterns
+
+#### Sequential Processing
+```python
+# Example: Research → Analysis → Documentation
+tools_used = [
+    "search_tool",      # Gather information
+    "calculator_tool",  # Analyze data
+    "write_file_tool",  # Document results
+    "task_done_tool"    # Mark complete
+]
+```
+
+#### Conditional Branching
+```python
+# Example: Check file → Read or Create
+if file_exists:
+    use_tool("read_file_tool")
+else:
+    use_tool("write_file_tool")
+```
+
+#### Error Recovery
+```python
+# Example: Try search → Fallback to local files
+try:
+    result = use_tool("search_tool")
+except NetworkError:
+    result = use_tool("read_file_tool")
+```
+
+### Best Practices for Tool Usage
+
+#### Tool Selection Guidelines
+1. **Search Tool**: Use for current information, facts, and real-time data
+2. **Calculator Tool**: Use for mathematical operations and data analysis
+3. **Read File Tool**: Use for accessing local documents and files
+4. **Write File Tool**: Use for creating reports, summaries, and documentation
+5. **Task Completion Tool**: Use to mark milestones and provide status updates
+
+#### Parameter Optimization
+- **Search queries**: Be specific and use relevant keywords
+- **File paths**: Use absolute paths when possible
+- **Calculations**: Break complex expressions into steps
+- **File operations**: Validate paths and permissions
+
+#### Error Handling
+- **Network issues**: Implement fallback strategies
+- **File access**: Check permissions and existence
+- **Calculation errors**: Validate input parameters
+- **Tool failures**: Provide alternative approaches
+
+#### Performance Considerations
+- **Caching**: Reuse results when appropriate
+- **Batching**: Combine related operations
+- **Timeouts**: Set reasonable limits for operations
+- **Resource usage**: Monitor memory and CPU usage
+
+## 💬 Interactive Commands
+
+While chatting, you can use these commands:
+
+- `/help` - Show available commands and tool information
+- `/stats` - Display session statistics and performance metrics
+- `/tools` - List available tools and their capabilities
+- `/history` - Show conversation history
+- `/clear` - Clear conversation context
+- `/config` - Show current configuration
+- `/quit` or `/exit` - Exit the application
+
+## 🛠️ Built-in Tools
+
+### 🧮 Calculator Tool
+**Purpose**: Perform mathematical calculations and data analysis
+
+**Capabilities**:
+- Basic arithmetic operations (+, -, *, /, %, **)
+- Scientific functions (sin, cos, tan, log, sqrt, etc.)
+- Statistical calculations (mean, median, std, etc.)
+- Safe expression evaluation with operator whitelisting
+
+**Example Usage**:
+```
+User: "Calculate the compound interest for $10,000 at 5% for 10 years"
+Agent: Uses calculator_tool(expression="10000 * (1 + 0.05)**10")
+Result: $16,288.95
+```
+
+**Security Features**:
+- Sandboxed execution environment
+- Operator and function whitelisting
+- Input validation and sanitization
+- Execution timeout protection
+
+### 📁 File Operations
+
+#### 📖 Read File Tool
+**Purpose**: Read and analyze local files securely
+
+**Supported Formats**:
+- Text files (.txt, .md, .csv, .json, .xml)
+- Code files (.py, .js, .html, .css, .sql)
+- Configuration files (.yaml, .ini, .conf)
+- Log files and structured data
+
+**Example Usage**:
+```
+User: "What's in the configuration file?"
+Agent: Uses read_file_tool(file_path="./config/config.yaml")
+Result: Displays file contents with syntax highlighting
+```
+
+**Security Features**:
+- Path traversal protection
+- File size limits (configurable)
+- Access control validation
+- Encoding detection and handling
+
+#### ✍️ Write File Tool
+**Purpose**: Create and modify files with safety controls
+
+**Capabilities**:
+- Create new files and directories
+- Append to existing files
+- Backup creation before modification
+- Template-based file generation
+
+**Example Usage**:
+```
+User: "Create a summary report of our findings"
+Agent: Uses write_file_tool(file_path="./reports/summary.md", content="...")
+Result: Creates formatted markdown report
+```
+
+**Security Features**:
+- Directory restriction enforcement
+- Automatic backup creation
+- File permission validation
+- Content sanitization
+
+### 🔍 Web Search Tool
+**Purpose**: Retrieve current information from the internet
+
+**Capabilities**:
+- General web search using DuckDuckGo
+- News and current events
+- Technical documentation lookup
+- Fact verification and research
+
+**Example Usage**:
+```
+User: "What's the latest news about renewable energy?"
+Agent: Uses search_tool(query="latest renewable energy news 2024")
+Result: Returns recent articles with titles, snippets, and URLs
+```
+
+**Features**:
+- Rate limiting and respectful crawling
+- Content filtering and safety
+- Result ranking and relevance
+- Source attribution and verification
+
+### ✅ Task Management Tool
+**Purpose**: Track progress and mark completion
+
+**Capabilities**:
+- Mark tasks as complete
+- Provide progress summaries
+- Generate completion reports
+- Track session accomplishments
+
+**Example Usage**:
+```
+User: "I've finished analyzing the data, mark this task complete"
+Agent: Uses task_done_tool(task="Data analysis", summary="Completed analysis of Q3 sales data")
+Result: Task marked complete with summary
+```
+
+**Features**:
+- Progress tracking and reporting
+- Completion validation
+- Summary generation
+- Session state management
+
+## 🔒 File Security Notes
+
+### Read File Tool Security
+- **Path Validation**: Prevents directory traversal attacks
+- **Access Control**: Respects file system permissions
+- **Size Limits**: Configurable maximum file size (default: 10MB)
+- **Type Checking**: Validates file types and encoding
+
+### Write File Tool Security
+- **Restricted Directories**: Cannot write to system directories
+- **Backup Creation**: Automatically backs up existing files
+- **Permission Checks**: Validates write permissions
+- **Content Validation**: Sanitizes input content
+
+### Best Practices
+1. **Use relative paths** when possible
+2. **Validate file permissions** before operations
+3. **Monitor file sizes** to prevent resource exhaustion
+4. **Regular backups** of important files
+5. **Audit file operations** through logging
+
+## 🎯 Best Practices
+
+### Tool Usage Guidelines
+1. **Be Specific**: Provide clear, detailed requests for better tool selection
+2. **Context Matters**: Include relevant context for more accurate results
+3. **Verify Results**: Cross-check important information from multiple sources
+4. **Security First**: Be cautious with file operations and external searches
+5. **Performance**: Use appropriate tools for the task complexity
+
+### Security Considerations
+- **File Access**: Tools respect system permissions and security boundaries
+- **Network Requests**: Search tool implements rate limiting and safe browsing
+- **Data Privacy**: All processing happens locally, no data sent to external APIs
+- **Input Validation**: All tool inputs are validated and sanitized
+- **Error Handling**: Graceful failure modes prevent system compromise
 
 ## ⚙️ Configuration
 
-DocuChat offers flexible configuration through both YAML files and command-line arguments, allowing you to customize every aspect of the application.
-
-### 📝 YAML Configuration
-
-The primary configuration file is located at `config/config.yaml`. This file controls all aspects of DocuChat's behavior and is organized into logical sections:
+### Configuration File Structure
 
 ```yaml
-# Language Model Configuration
+# config.yaml
 model:
-  # Path to your GGUF model file (required)
-  model_path: "./models/llama-2-7b-chat.Q4_K_M.gguf"
-  
-  # Maximum context window size in tokens
-  n_ctx: 4096
-  
-  # Controls randomness (0.0-1.0, higher = more random)
-  temperature: 0.7
-  
-  # Maximum number of tokens to generate per response
+  path: "./models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+  context_length: 4096
   max_tokens: 2048
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 40
+  repeat_penalty: 1.1
+  n_gpu_layers: 0  # Set to -1 for full GPU offload
 
-# Document Processing Settings
 documents:
-  # Directory containing documents to process
-  folder_path: "./documents"
-  
-  # Size of each document chunk in characters
-  chunk_size: 1000
-  
-  # Overlap between consecutive chunks in characters
-  chunk_overlap: 200
+  path: "./documents"
+  auto_reload: true
+  supported_extensions: [".pdf", ".docx", ".txt", ".md"]
+  max_file_size: 50  # MB
 
-# Embedding Model Configuration
 embeddings:
-  # Sentence-transformers model name
-  model: "all-MiniLM-L6-v2"
+  model_name: "BAAI/bge-m3"  # Enhanced mode
+  # model_name: "all-MiniLM-L6-v2"  # Basic mode
+  chunk_size: 1000
+  chunk_overlap: 200
+  batch_size: 32
 
-# Retrieval-Augmented Generation Settings
 rag:
-  # Number of document chunks to retrieve per query
-  n_retrieve: 5
-  
-  # Enable/disable RAG functionality
   enabled: true
+  top_k: 5
+  similarity_threshold: 0.7
+  rerank_enabled: true  # Enhanced mode only
+  hybrid_search: true   # Enhanced mode only
 
-# User Interface Configuration
-ui:
-  # Enable token-by-token streaming
+chat:
   streaming: true
-  
-  # System prompt for the AI assistant
-  system_prompt: "You are a helpful assistant."
-  
-  # Chat template format (auto, chatml, llama2, alpaca)
-  chat_template: "auto"
+  max_history: 10
+  system_prompt: "You are a helpful AI assistant..."
+  temperature: 0.7
 
-# Logging Configuration
+ui:
+  theme: "dark"
+  show_sources: true
+  auto_scroll: true
+  typing_speed: 50  # Characters per second
+
 logging:
-  # Enable verbose logging
-  verbose: false
+  level: "INFO"
+  file: "./logs/docuchat.log"
+  max_size: 10  # MB
+  backup_count: 5
+
+tools:
+  enabled: true
+  search_enabled: true
+  file_operations_enabled: true
+  calculator_enabled: true
+  max_search_results: 10
+  file_size_limit: 10  # MB
+
+enhanced:
+  enabled: false  # Set to true for enhanced features
+  ocr_enabled: true
+  ocr_languages: ["en", "es", "fr"]
+  advanced_parsing: true
+  reranking_model: "BAAI/bge-reranker-base"
+  query_expansion: true
 ```
 
-### 🖥️ Command-Line Arguments
-
-DocuChat provides extensive command-line options that override the YAML configuration. This allows for quick experimentation without editing the config file.
-
-#### Basic Usage
+### Environment Variables
 
 ```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf --folder_path docs
+# Model configuration
+DOCUCHAT_MODEL_PATH="./models/custom-model.gguf"
+DOCUCHAT_CONTEXT_LENGTH=8192
+DOCUCHAT_GPU_LAYERS=-1
+
+# Document processing
+DOCUCHAT_DOCUMENTS_PATH="./my-documents"
+DOCUCHAT_AUTO_RELOAD=true
+
+# Performance tuning
+DOCUCHAT_BATCH_SIZE=16
+DOCUCHAT_CHUNK_SIZE=512
+DOCUCHAT_TOP_K=10
+
+# Enhanced features
+DOCUCHAT_ENHANCED=true
+DOCUCHAT_OCR_ENABLED=true
+DOCUCHAT_HYBRID_SEARCH=true
+
+# Logging
+DOCUCHAT_LOG_LEVEL=DEBUG
+DOCUCHAT_LOG_FILE="./logs/debug.log"
+
+# Security
+DOCUCHAT_TOOLS_ENABLED=true
+DOCUCHAT_SEARCH_ENABLED=false
+DOCUCHAT_FILE_SIZE_LIMIT=5
 ```
 
-#### Complete Command-Line Reference
+## 📁 Project Structure
 
-##### Core Options
-- `--config`: Path to YAML configuration file (default: config/config.yaml)
-- `--model_path`: Path to GGUF model file (required)
-- `--folder_path`: Path to documents folder
-- `--query`: Single query mode (non-interactive)
-
-##### Model Configuration
-- `--n_ctx`: Context window size (default: 4096)
-- `--temperature`: Sampling temperature (default: 0.7)
-- `--max_tokens`: Maximum tokens to generate (default: 2048)
-- `--chat_template`: Chat template format (auto, chatml, llama2, alpaca)
-
-##### Document Processing
-- `--chunk_size`: Document chunk size (default: 1000)
-- `--chunk_overlap`: Chunk overlap size (default: 200)
-
-##### Embedding Models
-- `--embedding_model`: Sentence transformer model (default: all-MiniLM-L6-v2)
-- `--download_embedding_model`: Download model from Hugging Face to embeddings/ folder
-
-##### RAG Configuration
-- `--n_retrieve`: Number of documents to retrieve (default: 5)
-- `--no-rag`: Disable RAG and use LLM only
-
-##### Streaming & Display
-- `--streaming`: Enable streaming output (default: enabled)
-- `--no-streaming`: Disable streaming output
-
-##### Other Options
-- `--system_prompt`: Custom system prompt
-- `--verbose`: Enable verbose logging
-
-### 🔄 Configuration Precedence
-
-DocuChat follows a clear precedence order when determining configuration values:
-
-1. **Command-line arguments** (highest priority)
-2. **Custom config file** (if specified with `--config`)
-3. **Default config file** (`config/config.yaml`)
-4. **Hardcoded defaults** (lowest priority)
-
-### 🧩 Advanced Configuration
-
-#### Multiple Configuration Profiles
-
-You can maintain multiple configuration files for different use cases:
-
-```bash
-# Technical documentation analysis
-python docuchat.py --config configs/technical.yaml
-
-# Creative writing assistant
-python docuchat.py --config configs/creative.yaml
-```
-
-#### Configuration Validation
-
-DocuChat validates all configuration values at startup and provides helpful error messages for invalid settings. This prevents runtime errors due to misconfiguration.
-
-## 💡 Usage Examples
-
-DocuChat is designed to be versatile and adaptable to various use cases. Here are comprehensive examples to help you get the most out of the application.
-
-### 🤖 Interactive Chat Mode
-
-**Basic Interactive Session**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf --folder_path ./my_documents
-```
-
-**With Custom Configuration**
-```bash
-python docuchat.py --config my_custom_config.yaml
-```
-
-**With Adjusted Parameters**
-```bash
-python docuchat.py --model_path models/mistral-7b-instruct.Q4_K_M.gguf \
-                  --folder_path ./technical_docs \
-                  --temperature 0.5 \
-                  --n_retrieve 8 \
-                  --system_prompt "You are a technical expert who provides detailed explanations."
-```
-
-### 📝 Single Query Mode
-
-**Basic Query**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --folder_path ./my_documents \
-                  --query "What are the key features of the product?"
-```
-
-**Complex Query with Output Redirection**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --folder_path ./financial_reports \
-                  --query "Summarize the Q2 financial performance and highlight key metrics" \
-                  --no-streaming > financial_summary.txt
-```
-
-**Batch Processing Multiple Queries**
-```bash
-# Create a file with one query per line
-cat queries.txt | while read query; do
-  python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                    --folder_path ./knowledge_base \
-                    --query "$query" >> answers.txt
-  echo "\n---\n" >> answers.txt
-done
-```
-
-### 🧠 LLM-Only Mode (No Document Retrieval)
-
-**Creative Writing Assistant**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --no-rag \
-                  --system_prompt "You are a creative writing assistant who helps craft engaging stories."
-```
-
-**Code Assistant**
-```bash
-python docuchat.py --model_path models/codellama-7b.Q4_K_M.gguf \
-                  --no-rag \
-                  --system_prompt "You are an expert programmer who provides clean, efficient code examples and explanations."
-```
-
-**Quick Facts and Calculations**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --no-rag \
-                  --query "What is the square root of 144 divided by 3?"
-```
-
-### 🔄 Document Management
-
-**Refresh Changed Document Embeddings**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --folder_path ./my_documents \
-                  --refresh
-```
-
-**Force Rebuild All Embeddings**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --folder_path ./my_documents \
-                  --force-refresh
-```
-
-**Process Documents with Custom Chunking**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --folder_path ./large_documents \
-                  --chunk_size 1500 \
-                  --chunk_overlap 300 \
-                  --force-refresh
-```
-
-### 🔍 Specialized Use Cases
-
-**Technical Documentation Analysis**
-```bash
-python docuchat.py --model_path models/llama-2-13b-chat.Q5_K_M.gguf \
-                  --folder_path ./api_documentation \
-                  --n_retrieve 10 \
-                  --system_prompt "You are a technical documentation expert. Provide detailed and accurate information about APIs, code examples, and implementation details."
-```
-
-**Research Paper Assistant**
-```bash
-python docuchat.py --model_path models/llama-2-13b-chat.Q5_K_M.gguf \
-                  --folder_path ./research_papers \
-                  --embedding_model all-mpnet-base-v2 \
-                  --system_prompt "You are a research assistant who helps analyze academic papers. Provide detailed summaries, extract key findings, and explain complex concepts in clear language."
-```
-
-**Legal Document Analysis**
-```bash
-python docuchat.py --model_path models/llama-2-13b-chat.Q5_K_M.gguf \
-                  --folder_path ./legal_documents \
-                  --n_retrieve 8 \
-                  --system_prompt "You are a legal assistant who helps analyze contracts, agreements, and legal documents. Identify important clauses, potential issues, and provide clear explanations of legal terminology."
-```
-
-### 🛠️ Advanced Configuration
-
-**Using a Different Embedding Model**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --folder_path ./my_documents \
-                  --embedding_model multi-qa-MiniLM-L6-cos-v1 \
-                  --force-refresh
-```
-
-**Optimizing for Performance**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --folder_path ./my_documents \
-                  --n_ctx 2048 \
-                  --max_tokens 1024
-```
-
-**Debugging and Troubleshooting**
-```bash
-python docuchat.py --model_path models/llama-2-7b-chat.Q4_K_M.gguf \
-                  --folder_path ./my_documents \
-                  --verbose \
-                  --log_file debug.log
-```
-
-### 📊 Interactive Commands
-
-Once in interactive mode, you can use these special commands:
-
-- `/help` - Show available commands
-- `/exit` or `/quit` - Exit the application
-- `/clear` - Clear the conversation history
-- `/refresh` - Refresh document embeddings
-- `/info` - Show system information
-- `/rag on|off` - Enable or disable RAG mode
-- `/sources on|off` - Show or hide source documents
-
-
-
-## 🛡️ Robustness & Error Handling
-
-DocuChat includes comprehensive error handling and robustness features:
-
-### Process Management
-- **Automatic Cleanup**: Orphaned processes are automatically terminated
-- **Timeout Protection**: Configurable timeouts prevent hanging operations
-- **Resource Management**: Memory and file handle cleanup
-
-### Error Recovery
-- **Graceful Degradation**: Falls back to core functionality when optional features fail
-- **Retry Logic**: Automatic retries for transient failures
-- **Detailed Logging**: Comprehensive error reporting with stack traces
-
-### Configuration Validation
-- **Schema Validation**: YAML and JSON configuration validation
-- **Path Verification**: Automatic path resolution and validation
-- **Dependency Checking**: Runtime dependency verification
-
-### Security Features
-- **Input Sanitization**: Safe handling of user inputs
-- **Path Traversal Protection**: Secure file access controls
-- **Process Isolation**: Sandboxed execution for external tools
-
-## 🎮 Interactive Commands
-
-Once in interactive mode:
-- `help` - Show available commands and current configuration
-- `quit`, `exit`, `bye` - Exit the application
-- Any other text - Chat with your documents
-
-### Status Information
-The application displays:
-- **Model**: Currently loaded GGUF model
-- **Documents**: Number of processed documents and chunks
-- **Embedding Model**: Active embedding model
-- **Streaming**: Current streaming status
-- **RAG Mode**: Whether document retrieval is active
-
-
-## 🧠 Embedding Models
-
-### Recommended Models
-- `all-MiniLM-L6-v2` (default) - Fast, good quality, 384 dimensions
-- `all-mpnet-base-v2` - Slower, better quality, 768 dimensions
-- `multi-qa-MiniLM-L6-cos-v1` - Optimized for Q&A tasks
-- `paraphrase-multilingual-MiniLM-L12-v2` - Multilingual support
-
-### Model Selection Guidelines
-- **Speed Priority**: Use `all-MiniLM-L6-v2`
-- **Quality Priority**: Use `all-mpnet-base-v2`
-- **Q&A Tasks**: Use `multi-qa-MiniLM-L6-cos-v1`
-- **Multilingual**: Use `paraphrase-multilingual-MiniLM-L12-v2`
-- **Offline Use**: Download models locally with `--download_embedding_model`
-
-## 📄 Supported File Formats
-- **PDF** (.pdf) - Extracted using PyPDF2
-- **Word Documents** (.docx, .doc) - Processed with python-docx
-- **Text Files** (.txt) - Plain text
-- **Markdown** (.md) - Markdown formatted text
-
-## 🔧 How It Works
-
-DocuChat implements a sophisticated RAG (Retrieval-Augmented Generation) architecture that combines the power of semantic search with local language models. Here's a detailed breakdown:
-
-### 🏗️ System Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Documents     │───▶│  Document        │───▶│  Text Chunks    │
-│  (PDF, DOCX,    │    │  Processor       │    │  (Overlapping)  │
-│   TXT, MD)      │    │                  │    │                 │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                                         │
-                                                         ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   User Query    │───▶│  Embedding       │───▶│  Vector         │
-│                 │    │  Model           │    │  Embeddings     │
-└─────────────────┘    │ (Sentence Trans) │    │                 │
-                       └──────────────────┘    └─────────────────┘
-                                                         │
-                                                         ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Final Response │◀───│  Language Model  │◀───│  ChromaDB       │
-│  (Streaming)    │    │  (GGUF/llama.cpp)│    │  Vector Store   │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-### 📊 RAG Mode (Default) - Step by Step
-
-#### Phase 1: Document Ingestion & Processing
-1. **📄 Document Loading**: 
-   - Scans specified folder recursively for supported files
-   - Uses specialized parsers: PyPDF2 (PDF), python-docx (Word), built-in (TXT/MD)
-   - Handles encoding detection and error recovery
-
-2. **✂️ Intelligent Chunking**:
-   - Splits documents into overlapping chunks (default: 1000 chars with 200 char overlap)
-   - Preserves sentence boundaries and paragraph structure
-   - Maintains document metadata (filename, chunk index, source location)
-
-3. **🧮 Vector Embedding Generation**:
-   - Converts each text chunk into high-dimensional vectors (384 or 768 dimensions)
-   - Uses sentence-transformers models (default: all-MiniLM-L6-v2)
-   - Captures semantic meaning, not just keyword matching
-
-4. **💾 Persistent Storage**:
-   - Stores embeddings in ChromaDB with metadata
-   - Creates efficient indexes for fast similarity search
-   - Persists between sessions to avoid reprocessing
-
-#### Phase 2: Query Processing & Response Generation
-5. **❓ Query Analysis**:
-   - User query is embedded using the same model as documents
-   - Query vector is compared against all document vectors
-   - Uses cosine similarity for semantic matching
-
-6. **🔍 Context Retrieval**:
-   - Retrieves top-k most similar document chunks (default: 5)
-   - Ranks by relevance score and diversity
-   - Includes source attribution for transparency
-
-7. **🤖 LLM Integration**:
-   - Constructs prompt with system instructions, retrieved context, and user query
-   - Sends to local GGUF model via llama-cpp-python
-   - Uses appropriate chat template for the specific model
-
-8. **⚡ Streaming Response**:
-   - Generates response token-by-token in real-time
-   - Displays source documents used for each response
-   - Maintains conversation context within session
-
-### 🚀 LLM-Only Mode (--no-rag)
-
-When RAG is disabled:
-- Bypasses document retrieval entirely
-- Sends queries directly to the language model
-- Useful for general questions or creative tasks
-- Faster response times but no document-specific knowledge
-
-### 🔄 Streaming Implementation Details
-
-**Real-time Token Generation**:
-- Uses llama-cpp-python's streaming API
-- Displays tokens as they're generated (like ChatGPT)
-- Provides immediate feedback without waiting for complete response
-- Allows interruption of long responses
-
-**Technical Benefits**:
-- **Lower Perceived Latency**: Users see progress immediately
-- **Better UX**: More engaging and responsive interface
-- **Memory Efficient**: Processes tokens incrementally
-- **Interruptible**: Can stop generation mid-stream
-
-### 🗄️ Vector Database Architecture
-
-**ChromaDB Implementation**:
-- **Storage Location**: `./vectordbs/chroma.sqlite3`
-- **Persistence**: Embeddings survive application restarts
-- **Efficiency**: Optimized for similarity search operations
-- **Scalability**: Handles thousands of documents efficiently
-
-**Metadata Management**:
-- **Document Tracking**: Maps chunks back to source files
-- **Change Detection**: SHA-256 hashing detects file modifications
-- **Incremental Updates**: Only processes new or changed files
-- **JSON Serialization**: Secure, human-readable metadata storage
-
-### 🧠 Embedding Model Strategy
-
-**Model Selection Criteria**:
-- **Speed vs Quality**: Balance between inference time and accuracy
-- **Dimensionality**: Higher dimensions = better quality, more memory
-- **Language Support**: Multilingual models for non-English content
-- **Domain Specialization**: Q&A optimized models for better retrieval
-
-**Supported Models**:
-- `all-MiniLM-L6-v2`: Fast, good quality (384 dims)
-- `all-mpnet-base-v2`: High quality, slower (768 dims)
-- `multi-qa-MiniLM-L6-cos-v1`: Optimized for Q&A tasks
-- Custom models: Any sentence-transformers compatible model
-
-### 🔒 Security & Privacy Architecture
-
-**Local-First Design**:
-- **No External APIs**: Everything runs on your machine
-- **Data Privacy**: Documents never leave your computer
-- **Offline Capable**: Works without internet connection
-- **Secure Storage**: SHA-256 hashing, JSON serialization
-
-**Security Measures**:
-- **Input Sanitization**: Safe handling of file paths and user input
-- **Process Isolation**: Controlled execution environment
-- **Memory Management**: Automatic cleanup and resource management
-- **Error Boundaries**: Graceful handling of malformed documents
-
-## 🏗️ Project Structure
 ```
 DocuChat/
-├── docuchat.py          # Main application
+├── src/
+│   └── docuchat/
+│       ├── __init__.py
+│       ├── cli/
+│       │   ├── __init__.py
+│       │   └── main.py              # Main CLI application
+│       ├── core/
+│       │   ├── __init__.py
+│       │   ├── config.py            # Configuration management
+│       │   ├── docuchat.py          # Core chat logic
+│       │   ├── document_processor.py # Basic document processing
+│       │   ├── enhanced_document_processor.py # Enhanced processing
+│       │   ├── vector_store.py      # Basic vector storage
+│       │   └── enhanced_vector_store.py # Enhanced vector storage
+│       └── utils/
+│           ├── __init__.py
+│           ├── file_monitor.py      # File system monitoring
+│           └── logger.py            # Logging utilities
+├── tools/
+│   ├── __init__.py                  # Tool discovery
+│   ├── base_tool.py                 # Abstract base class
+│   ├── calculator_tool.py           # Mathematical calculations
+│   ├── read_file_tool.py            # File reading operations
+│   ├── search_tool.py               # Web search functionality
+│   ├── task_done_tool.py            # Task completion tracking
+│   └── write_file_tool.py           # File writing operations
 ├── config/
-│   └── config.yaml      # Configuration file
-├── documents/           # Place your documents here
-│   └── .gitkeep
-├── models/              # Place your GGUF models here
-│   └── .gitkeep
-├── embeddings/          # Downloaded embedding models
-│   ├── .gitkeep
-│   └── README.md
-├── requirements.txt     # Python dependencies
-├── README.md           # This documentation
-├── .gitignore          # Git ignore patterns
-├── run_no_rag.bat      # Windows batch file for LLM-only mode
-└── run_with_rag.bat    # Windows batch file for RAG mode
+│   └── config_original.yaml.template # Configuration template
+├── documents/                       # Your documents go here
+├── models/                          # LLM models storage
+├── vector_store/                    # Vector database storage
+├── logs/                           # Application logs
+├── tests/                          # Unit and integration tests
+├── scripts/                        # Setup and utility scripts
+├── requirements.txt                # Python dependencies
+├── setup.py                        # Package installation
+├── Dockerfile                      # Container definition
+├── docker-compose.yml              # Multi-service orchestration
+├── .dockerignore                   # Docker build exclusions
+├── .gitignore                      # Git exclusions
+└── README.md                       # This file
+```
+
+## 🧪 Testing
+
+### Running Tests
+```bash
+# Install test dependencies
+pip install -e ".[test]"
+
+# Run all tests
+python -m pytest
+
+# Run with coverage
+python -m pytest --cov=docuchat --cov-report=html
+
+# Run specific test categories
+python -m pytest tests/unit/
+python -m pytest tests/integration/
+python -m pytest tests/tools/
+
+# Run performance tests
+python -m pytest tests/performance/ --benchmark-only
+```
+
+### Test Categories
+- **Unit Tests**: Individual component testing
+- **Integration Tests**: End-to-end workflow testing
+- **Tool Tests**: Tool functionality and security testing
+- **Performance Tests**: Benchmarking and optimization
+- **Security Tests**: Vulnerability and safety testing
+
+## 🔧 Adding Custom Tools
+
+### Step 1: Create Tool Class
+```python
+# tools/my_custom_tool.py
+from tools.base_tool import BaseTool
+import requests
+
+class MyCustomTool(BaseTool):
+    @property
+    def name(self) -> str:
+        return "MyTool"
+    
+    @property
+    def description(self) -> str:
+        return "Description of what my tool does"
+    
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                "input": {"type": "string", "description": "Input parameter"}
+            },
+            "required": ["input"]
+        }
+    
+    def execute(self, **kwargs) -> dict:
+        input_value = kwargs.get("input")
+        # Tool implementation here
+        result = self.process_input(input_value)
+        return {"result": result, "status": "success"}
+    
+    def process_input(self, input_value: str) -> str:
+        # Custom logic implementation
+        return f"Processed: {input_value}"
+```
+
+### Step 2: Tool Discovery
+Tools are automatically discovered when placed in the `tools/` directory. The system will:
+1. Scan for Python files in the tools directory
+2. Import modules and find BaseTool subclasses
+3. Instantiate tools and register them
+4. Generate OpenRouter-compatible schemas
+
+### Step 3: Testing Your Tool
+```python
+# tests/tools/test_my_custom_tool.py
+import pytest
+from tools.my_custom_tool import MyCustomTool
+
+def test_my_custom_tool():
+    tool = MyCustomTool({})
+    result = tool.execute(input="test")
+    assert result["status"] == "success"
+    assert "Processed: test" in result["result"]
 ```
 
 ## 🔧 Troubleshooting
 
-This comprehensive troubleshooting guide will help you resolve common issues and optimize DocuChat's performance.
-
-### 🚨 Common Issues & Solutions
+### Common Issues
 
 #### Model Loading Problems
-
-**❌ Model file not found**
-```
-Error: Model file not found: models/llama-2-7b-chat.Q4_K_M.gguf
-```
-**✅ Solutions:**
-- Verify the model path is correct and the file exists
-- Check file permissions (ensure read access)
-- Ensure the model is in GGUF format (not GGML or other formats)
-- Download the model if missing:
-  ```bash
-  # Example download command
-  wget https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf
-  ```
-
-**❌ Model loading fails with memory error**
-```
-Error: Failed to load model: not enough memory
-```
-**✅ Solutions:**
-- Use a smaller quantized model (Q4_K_M instead of Q5_K_M or Q8_0)
-- Reduce context window size: `--n_ctx 2048`
-- Close other memory-intensive applications
-- Consider using a smaller model variant (7B instead of 13B)
-
-**❌ Unsupported model format**
-```
-Error: Unsupported model format or corrupted file
-```
-**✅ Solutions:**
-- Ensure the model is in GGUF format (newer format)
-- Re-download the model if corrupted
-- Check file integrity with checksums if available
-
-#### Document Processing Issues
-
-**❌ Document parsing errors**
-```
-Error: Failed to parse document: example.pdf
-```
-**✅ Solutions:**
-- Ensure documents are not password-protected
-- Check if the document is corrupted
-- For PDFs: Try converting to text first
-- For Word docs: Ensure they're in .docx format (not .doc)
-- Use `--verbose` to see detailed error messages
-
-**❌ No documents found**
-```
-Warning: No supported documents found in folder
-```
-**✅ Solutions:**
-- Check the folder path is correct
-- Ensure documents are in supported formats (PDF, DOCX, TXT, MD)
-- Verify file extensions are correct
-- Check folder permissions
-
-**❌ Embedding generation fails**
-```
-Error: Failed to generate embeddings for documents
-```
-**✅ Solutions:**
-- Check internet connection (for first-time model download)
-- Ensure sufficient disk space for embedding model
-- Try a different embedding model: `--embedding_model all-MiniLM-L6-v2`
-- Clear the embeddings cache and retry
-
-#### Performance Issues
-
-**❌ Very slow response generation**
-**✅ Optimization strategies:**
-- **Use GPU acceleration** (if available):
-  ```bash
-  pip install llama-cpp-python[cuda]  # For NVIDIA GPUs
-  ```
-- **Reduce model size**: Use Q4_K_M instead of larger quantizations
-- **Optimize context window**: `--n_ctx 2048` for faster processing
-- **Reduce retrieved chunks**: `--n_retrieve 3` instead of default 5
-- **Use faster embedding model**: `--embedding_model all-MiniLM-L6-v2`
-
-**❌ High memory usage**
-**✅ Memory optimization:**
-- Use smaller chunk sizes: `--chunk_size 500`
-- Reduce context window: `--n_ctx 2048`
-- Process documents in smaller batches
-- Close other applications
-
-#### Configuration Issues
-
-**❌ Configuration file not found**
-```
-Error: Configuration file not found: config/config.yaml
-```
-**✅ Solutions:**
-- Create the config directory: `mkdir config`
-- Copy the example config file
-- Use absolute paths in configuration
-- Specify config file explicitly: `--config /path/to/config.yaml`
-
-**❌ Invalid configuration values**
-```
-Error: Invalid temperature value: 2.5
-```
-**✅ Solutions:**
-- Check value ranges (temperature: 0.0-1.0, top_p: 0.0-1.0)
-- Ensure numeric values are properly formatted
-- Use quotes for string values in YAML
-- Validate YAML syntax with online tools
-
-### 🐛 Debug Mode & Logging
-
-#### Enable Comprehensive Debugging
 ```bash
-python docuchat.py --verbose --log_file debug.log
-```
+# Check model file exists and is readable
+ls -la models/
 
-#### Log Analysis
-**Check these log entries for issues:**
-- Model loading progress and memory usage
-- Document processing statistics
-- Embedding generation times
-- Query processing details
-- Error stack traces
-
-#### Advanced Debugging
-```bash
-# Maximum verbosity with detailed timing
-python docuchat.py --verbose --log_file debug.log --show_timing
-
-# Debug specific components
-DOCUCHAT_DEBUG=1 python docuchat.py --verbose
-```
-
-### ⚡ Performance Optimization Guide
-
-#### Hardware Optimization
-
-**For CPU-only systems:**
-- Use Q4_K_M quantized models
-- Set `n_ctx` to 2048 or lower
-- Use `all-MiniLM-L6-v2` embedding model
-- Limit concurrent processes
-
-**For GPU systems:**
-- Install CUDA-enabled llama-cpp-python
-- Use larger models (Q5_K_M or Q8_0)
-- Increase context window to 4096+
-- Use higher-quality embedding models
-
-#### Model Selection Guide
-
-| System RAM | Recommended Model | Context Window | Performance |
-|------------|------------------|----------------|-------------|
-| 8GB | 7B Q4_K_M | 2048 | Good |
-| 16GB | 7B Q5_K_M | 4096 | Better |
-| 32GB+ | 13B Q4_K_M | 4096 | Best |
-
-#### Document Processing Optimization
-
-**For large document collections:**
-```bash
-# Optimize chunking for better retrieval
-python docuchat.py --chunk_size 800 --chunk_overlap 150
-
-# Use high-quality embeddings for better accuracy
-python docuchat.py --embedding_model all-mpnet-base-v2
-
-# Increase retrieval for comprehensive answers
-python docuchat.py --n_retrieve 8
-```
-
-**For quick queries:**
-```bash
-# Optimize for speed
-python docuchat.py --chunk_size 500 --n_retrieve 3 --n_ctx 2048
-```
-
-### 🔍 System Requirements Check
-
-#### Verify Your Setup
-```bash
-# Check Python version (3.8+ required)
-python --version
+# Verify model format (should be .gguf)
+file models/your-model.gguf
 
 # Check available memory
-python -c "import psutil; print(f'Available RAM: {psutil.virtual_memory().available / 1024**3:.1f} GB')"
+free -h
 
-# Check disk space
-df -h .
-
-# Test model loading
-python -c "from llama_cpp import Llama; print('llama-cpp-python working')"
+# Try smaller model or reduce context length
+python -m docuchat.cli.main --model-path models/smaller-model.gguf
 ```
 
-#### Environment Validation
+#### Document Processing Issues
 ```bash
-# Validate all dependencies
-pip check
+# Check document permissions
+ls -la documents/
 
-# Test embedding model
-python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+# Verify supported formats
+python -c "from docuchat.core.document_processor import DocumentProcessor; print(DocumentProcessor().get_supported_formats())"
 
-# Check ChromaDB
-python -c "import chromadb; print('ChromaDB working')"
+# Clear vector store cache
+rm -rf vector_store/
+
+# Rebuild embeddings
+python -m docuchat.cli.main --rebuild-index
 ```
 
-### 📞 Getting Help
-
-If you're still experiencing issues:
-
-1. **Check the logs** with `--verbose --log_file debug.log`
-2. **Verify system requirements** and dependencies
-3. **Try with minimal configuration** to isolate the issue
-4. **Search existing issues** in the project repository
-5. **Create a detailed bug report** with:
-   - System specifications (OS, RAM, Python version)
-   - Complete error messages and logs
-   - Steps to reproduce the issue
-   - Configuration files used
-
-
-## 🛠️ Development
-
-### 🏗️ Architecture Overview
-
-DocuChat is built with a clean, modular architecture that separates concerns and enables easy maintenance and extension.
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    DocuChat Application                     │
-├─────────────────────────────────────────────────────────────┤
-│  CLI Interface  │  Configuration  │  Interactive Shell     │
-├─────────────────────────────────────────────────────────────┤
-│                    Core Components                          │
-├─────────────────┬─────────────────┬─────────────────────────┤
-│   DocuChat      │   VectorStore   │   Document Processors   │
-│   (Main Logic)  │   (Embeddings)  │   (PDF, DOCX, TXT, MD)  │
-├─────────────────┼─────────────────┼─────────────────────────┤
-│                    External Dependencies                    │
-├─────────────────┬─────────────────┬─────────────────────────┤
-│  llama-cpp-     │   ChromaDB      │   sentence-transformers │
-│  python         │   (Vector DB)   │   (Embeddings)          │
-└─────────────────┴─────────────────┴─────────────────────────┘
-```
-
-### 📦 Core Components
-
-#### 1. DocuChatConfig Class
-**Purpose**: Centralized configuration management
-**Responsibilities**:
-- YAML configuration file parsing
-- Command-line argument processing
-- Configuration validation and defaults
-- Environment variable support
-
-**Key Methods**:
-- `from_yaml()`: Load configuration from YAML file
-- `update_from_args()`: Override with CLI arguments
-- `validate()`: Ensure configuration consistency
-
-#### 2. VectorStore Class
-**Purpose**: Document embedding and similarity search
-**Responsibilities**:
-- Document chunking and preprocessing
-- Vector embedding generation
-- ChromaDB integration and persistence
-- Similarity search and retrieval
-
-**Key Methods**:
-- `add_documents()`: Process and store document embeddings
-- `search()`: Retrieve similar document chunks
-- `refresh()`: Update embeddings for changed documents
-
-#### 3. DocuChat Class
-**Purpose**: Main application logic and LLM integration
-**Responsibilities**:
-- Language model loading and management
-- RAG pipeline orchestration
-- Response generation and streaming
-- Interactive chat session management
-
-**Key Methods**:
-- `chat()`: Process user queries with RAG
-- `generate_response()`: LLM response generation
-- `interactive_chat()`: Handle chat sessions
-
-#### 4. Document Processors
-**Purpose**: Format-specific document parsing
-**Supported Formats**:
-- **PDF**: PyPDF2-based extraction with error recovery
-- **DOCX**: python-docx for Word document parsing
-- **TXT/MD**: Native Python text processing with encoding detection
-
-### 🔧 Dependencies & Technologies
-
-#### Core Dependencies
-```python
-# LLM Integration
-llama-cpp-python>=0.2.0    # GGUF model loading and inference
-
-# Embeddings & Vector Search
-sentence-transformers>=2.2.0  # Text embedding generation
-chromadb>=0.4.0               # Vector database
-
-# Document Processing
-PyPDF2>=3.0.0                 # PDF parsing
-python-docx>=0.8.11           # Word document parsing
-
-# Configuration & Utilities
-PyYAML>=6.0                   # YAML configuration
-colorama>=0.4.6               # Cross-platform colors
-psutil>=5.9.0                 # System monitoring
-```
-
-#### Optional Dependencies
-```python
-# GPU Acceleration (optional)
-llama-cpp-python[cuda]        # NVIDIA GPU support
-llama-cpp-python[metal]       # Apple Metal support
-
-# Advanced Embeddings (optional)
-torch>=1.9.0                  # PyTorch for advanced models
-transformers>=4.20.0          # Hugging Face transformers
-```
-
-### 🚀 Development Setup
-
-#### 1. Environment Setup
+#### Performance Issues
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/docuchat.git
-cd docuchat
+# Monitor resource usage
+top -p $(pgrep -f docuchat)
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Check GPU utilization (if using GPU)
+nvidia-smi
 
-# Install development dependencies
-pip install -r requirements-dev.txt
+# Reduce batch size and chunk size
+export DOCUCHAT_BATCH_SIZE=8
+export DOCUCHAT_CHUNK_SIZE=512
+
+# Enable performance profiling
+python -m docuchat.cli.main --profile
 ```
 
-#### 2. Development Dependencies
+#### Tool-Related Issues
 ```bash
-# Code quality tools
-pip install black isort flake8 mypy
+# List available tools
+python -c "from tools import discover_tools; print(list(discover_tools().keys()))"
 
-# Testing framework
-pip install pytest pytest-cov pytest-mock
+# Test specific tool
+python -c "from tools.search_tool import SearchTool; tool = SearchTool({}); print(tool.execute(query='test'))"
 
-# Documentation
-pip install sphinx sphinx-rtd-theme
+# Disable problematic tools
+export DOCUCHAT_SEARCH_ENABLED=false
 ```
 
-#### 3. Pre-commit Hooks
-```bash
-# Install pre-commit
-pip install pre-commit
+### Performance Optimization
 
-# Setup hooks
-pre-commit install
+#### Memory Optimization
+- Use smaller models (Q4_K_M instead of Q8_0)
+- Reduce context length and chunk size
+- Enable model quantization
+- Use streaming responses
 
-# Run hooks manually
-pre-commit run --all-files
-```
+#### Speed Optimization
+- Enable GPU acceleration (if available)
+- Increase batch size for embeddings
+- Use SSD storage for vector database
+- Enable caching for repeated queries
 
-### 🧪 Testing
-
-#### Running Tests
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=docuchat --cov-report=html
-
-# Run specific test file
-pytest tests/test_vector_store.py
-
-# Run with verbose output
-pytest -v
-```
-
-#### Test Structure
-```
-tests/
-├── unit/
-│   ├── test_config.py
-│   ├── test_vector_store.py
-│   └── test_document_processors.py
-├── integration/
-│   ├── test_rag_pipeline.py
-│   └── test_cli.py
-└── fixtures/
-    ├── sample_documents/
-    └── test_configs/
-```
-
-### 📝 Code Style & Standards
-
-#### Code Formatting
-```bash
-# Format code with Black
-black docuchat.py
-
-# Sort imports with isort
-isort docuchat.py
-
-# Check style with flake8
-flake8 docuchat.py
-
-# Type checking with mypy
-mypy docuchat.py
-```
-
-#### Coding Standards
-- **PEP 8**: Follow Python style guidelines
-- **Type Hints**: Use type annotations for all functions
-- **Docstrings**: Google-style docstrings for all public methods
-- **Error Handling**: Comprehensive exception handling
-- **Logging**: Structured logging with appropriate levels
-
-### 🔄 Contributing Guidelines
-
-#### 1. Development Workflow
-```bash
-# Create feature branch
-git checkout -b feature/your-feature-name
-
-# Make changes and commit
-git add .
-git commit -m "feat: add your feature description"
-
-# Push and create pull request
-git push origin feature/your-feature-name
-```
-
-#### 2. Commit Message Format
-Follow conventional commits:
-```
-feat: add new feature
-fix: bug fix
-docs: documentation changes
-style: formatting changes
-refactor: code refactoring
-test: add or update tests
-chore: maintenance tasks
-```
-
-#### 3. Pull Request Process
-1. **Fork** the repository
-2. **Create** a feature branch
-3. **Write** tests for new functionality
-4. **Ensure** all tests pass
-5. **Update** documentation if needed
-6. **Submit** pull request with clear description
-
-### 🏗️ Extension Points
-
-#### Adding New Document Formats
-```python
-def process_new_format(file_path: str) -> str:
-    """Process a new document format.
-    
-    Args:
-        file_path: Path to the document file
-        
-    Returns:
-        Extracted text content
-    """
-    # Implementation here
-    pass
-
-# Register in document processor
-DOCUMENT_PROCESSORS['.new_ext'] = process_new_format
-```
-
-#### Custom Embedding Models
-```python
-class CustomEmbeddingModel:
-    def encode(self, texts: List[str]) -> np.ndarray:
-        """Generate embeddings for input texts."""
-        # Custom implementation
-        pass
-```
-
-#### Plugin System (Future)
-```python
-# Plugin interface for future extensibility
-class DocuChatPlugin:
-    def pre_process(self, query: str) -> str:
-        """Pre-process user query."""
-        return query
-    
-    def post_process(self, response: str) -> str:
-        """Post-process generated response."""
-        return response
-```
-
-### 📊 Performance Monitoring
-
-#### Profiling
-```bash
-# Profile application performance
-python -m cProfile -o profile.stats docuchat.py --query "test"
-
-# Analyze profile results
-python -c "import pstats; pstats.Stats('profile.stats').sort_stats('cumulative').print_stats(20)"
-```
-
-#### Memory Monitoring
+#### Resource Monitoring
 ```bash
 # Monitor memory usage
-python -m memory_profiler docuchat.py
+watch -n 1 'ps aux | grep docuchat'
 
-# Line-by-line memory profiling
-@profile
-def your_function():
-    # Function implementation
-    pass
+# Check disk usage
+du -sh vector_store/ models/ documents/
+
+# Monitor network usage (for search tool)
+netstat -i
 ```
 
-### 🔒 Security Considerations
+## 🔒 Privacy and Security
 
-- **Input Sanitization**: All user inputs are validated
-- **Path Traversal**: File paths are validated and restricted
-- **Memory Safety**: Proper resource cleanup and limits
-- **Dependency Security**: Regular security audits with `pip-audit`
-- **Data Privacy**: All processing happens locally
+### Privacy Features
+- **Local Processing**: All AI processing happens on your machine
+- **No External APIs**: No data sent to external services (except optional web search)
+- **Secure Storage**: Documents and embeddings stored locally
+- **No Telemetry**: No usage data collection or tracking
 
-## 🗺️ Roadmap
+### Security Measures
+- **Input Validation**: All inputs validated and sanitized
+- **Path Security**: File operations restricted to safe directories
+- **Sandboxed Execution**: Tools run in controlled environments
+- **Error Handling**: Secure error messages without information leakage
+- **Access Control**: Respects file system permissions
 
-DocuChat is under active development with a clear roadmap for future enhancements. Here's what's planned for upcoming releases:
-
-### 🚀 Near-Term (0-3 Months)
-
-#### Performance Enhancements
-- **✅ GPU Acceleration Improvements**: Enhanced CUDA support for NVIDIA GPUs
-- **✅ Memory Optimization**: Reduced RAM usage for large document collections
-- **✅ Batch Processing**: Parallel document processing for faster indexing
-- **✅ Caching System**: Smart caching for frequently accessed documents
-
-#### User Experience
-- **✅ Command History**: Save and recall previous queries
-- **✅ Export Functionality**: Save conversations to markdown or text files
-- **✅ Progress Indicators**: Better feedback during long operations
-- **✅ Enhanced Source Attribution**: Improved document source display
-
-#### Document Processing
-- **✅ HTML Support**: Native processing of HTML documents
-- **✅ Code File Support**: Better handling of source code files
-- **✅ Table Extraction**: Improved handling of tables in documents
-- **✅ Metadata Extraction**: Author, date, title extraction from documents
-
-### 🌟 Mid-Term (3-6 Months)
-
-#### Advanced RAG Features
-- **🔄 Hybrid Search**: Combine semantic and keyword search
-- **🔄 Re-ranking**: Two-stage retrieval with result re-ranking
-- **🔄 Query Decomposition**: Break complex queries into sub-queries
-- **🔄 Context Compression**: Optimize retrieved context for relevance
-
-#### UI Improvements
-- **🔄 Web Interface**: Simple web UI for easier interaction
-- **🔄 Rich Text Formatting**: Markdown and code syntax highlighting
-- **🔄 Visualization Tools**: Display document relationships graphically
-- **🔄 Mobile-Friendly Design**: Responsive interface for all devices
-
-#### Integration & Extensibility
-- **🔄 Plugin System**: Framework for custom extensions
-- **🔄 API Mode**: REST API for programmatic access
-- **🔄 Integration Hooks**: Connect with other tools and workflows
-- **🔄 Custom Pipelines**: Configurable processing pipelines
-
-### 🔮 Long-Term (6+ Months)
-
-#### Multi-Modal Capabilities
-- **📅 Image Understanding**: Process and reference images in documents
-- **📅 Chart & Graph Analysis**: Extract information from visual data
-- **📅 PDF Form Recognition**: Handle structured form documents
-- **📅 Handwriting Recognition**: Process handwritten notes
-
-#### Advanced Intelligence
-- **📅 Multilingual Support**: Enhanced capabilities for non-English documents
-- **📅 Fine-Tuning Tools**: Customize models for specific domains
-- **📅 Agent Framework**: Multi-step reasoning and tool use
-- **📅 Knowledge Graph**: Build connections between document entities
-
-#### Enterprise Features
-- **📅 Multi-User Support**: Shared document collections with permissions
-- **📅 Compliance Tools**: Audit logs and access controls
-- **📅 Scalability Enhancements**: Distributed processing for large deployments
-- **📅 Enterprise Authentication**: LDAP, SAML, and SSO integration
-
-### 🤝 Community Contributions
-
-We welcome contributions in these areas:
-
-- **Documentation Improvements**: Help expand and clarify documentation
-- **Bug Fixes**: Address issues in the issue tracker
-- **Test Coverage**: Expand unit and integration tests
-- **New Document Formats**: Add support for additional file types
-- **Performance Optimizations**: Improve speed and resource usage
-- **UI Enhancements**: Improve the user experience
+### Best Practices
+1. **Keep models updated** to latest versions
+2. **Regular security scans** of dependencies
+3. **Limit file access** to necessary directories
+4. **Monitor tool usage** through logging
+5. **Use strong passwords** for any external integrations
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🤝 Support
+## 🤝 Contributing
 
-- **Issues**: Report bugs and request features on GitHub Issues
-- **Documentation**: Check this README for comprehensive guides
-- **Community**: Join discussions for help and feature requests
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
-## 🙏 Acknowledgments
+### Development Setup
+```bash
+# Clone repository
+git clone https://github.com/eltay89/DocuChat.git
+cd DocuChat
 
-DocuChat stands on the shoulders of these amazing open-source projects:
+# Install in development mode
+pip install -e ".[dev]"
 
-- **[llama-cpp-python](https://github.com/abetlen/llama-cpp-python)**: Efficient C++ implementation of LLM inference with Python bindings
-- **[sentence-transformers](https://github.com/UKPLab/sentence-transformers)**: State-of-the-art text embedding models
-- **[ChromaDB](https://github.com/chroma-core/chroma)**: Fast, scalable vector database for similarity search
-- **[TheBloke](https://huggingface.co/TheBloke)**: Quantized GGUF models that make local LLMs accessible
-- **[PyPDF2](https://github.com/py-pdf/PyPDF2)**: PDF document processing library
-- **[python-docx](https://github.com/python-openxml/python-docx)**: Word document processing
+# Install pre-commit hooks
+pre-commit install
 
-### Special Thanks
+# Run tests
+python -m pytest
+```
 
-- To all contributors who have helped improve DocuChat
-- The open-source AI community for making powerful language models accessible
-- Users who provide valuable feedback and bug reports
+### Contribution Areas
+- **New Tools**: Add functionality with custom tools
+- **Document Processors**: Support for new file formats
+- **UI Improvements**: Enhanced user interface features
+- **Performance**: Optimization and efficiency improvements
+- **Documentation**: Tutorials, examples, and guides
+- **Testing**: Comprehensive test coverage
+
+## 📚 Additional Documentation
+
+- [📖 Installation Guide](INSTALLATION.md) - Detailed setup instructions
+- [🏗️ Architecture Overview](ARCHITECTURE.md) - System design and components
+- [🔌 API Documentation](API.md) - Programming interfaces
+- [🤝 Contributing Guidelines](CONTRIBUTING.md) - How to contribute
+- [💬 System Prompts](SYSTEM_PROMPTS.md) - AI behavior configuration
+- [📋 Changelog](CHANGELOG.md) - Version history and updates
+
+## 📈 Version History
+
+### v2.0.0 (Current)
+- ✨ Enhanced document processing with OCR support
+- 🔍 Modern embedding models (BGE-M3, E5-large-v2)
+- 🔄 Hybrid search with BM25 + dense retrieval
+- 🎯 Cross-encoder reranking for better results
+- 🛠️ Comprehensive tool system with automatic discovery
+- 🐳 Full Docker containerization support
+- 🌐 Multiple interface options (CLI, API, Web UI)
+- 🔒 Enhanced security and privacy features
+- 📊 Performance monitoring and optimization
+- 📚 Comprehensive documentation and examples
+
+### v1.0.1 (Legacy)
+- 📄 Basic document processing (PDF, DOCX, TXT, MD)
+- 🔍 Simple vector search with ChromaDB
+- 💬 Interactive chat interface
+- ⚙️ YAML configuration support
+- 🔄 Real-time file monitoring
+- 🛡️ Basic error handling and logging
 
 ---
 
-**Happy chatting with your documents! 🚀📚**
+**DocuChat v2.0** - Transform your documents into an intelligent, conversational knowledge base with the power of local AI. 🚀
+
+For support and questions, please visit our [GitHub Issues](https://github.com/eltay89/DocuChat/issues) page.
